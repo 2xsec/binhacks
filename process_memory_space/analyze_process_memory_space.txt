@@ -1,0 +1,754 @@
+
+* process의 memory space 구조를 이해하고, 각 변수들이 어디에 할당되는지 확인해보자.
+  => process map과 전역변수(초기화된 전역변수와 초기화되지 않은 전역변수), 지역변수의 memory map 상 위치
+
+
+* make test_map & libfunc.so for 32 bit
+
+1. create libfunc.so
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ ls
+analyze_process_memory_space.txt  func.c  test_maps.c
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ gcc -c func.c -fPIC -m32 -g
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ ls
+analyze_process_memory_space.txt  func.c  func.o  test_maps.c
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ gcc -o libfunc.so func.o -shared -m32 -g
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ ls
+analyze_process_memory_space.txt  func.c  func.o  libfunc.so  test_maps.c
+
+2. create test_maps binary
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ gcc -o test_maps test_maps.c -L. -lfunc -m32 -g
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ ls
+analyze_process_memory_space.txt  func.c  func.o  libfunc.so  test_maps  test_maps.c
+
+3. execute test_maps
+   => libfunc.so를 runtime에 search 할 수 없어 실행 실패
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ ./test_maps
+./test_maps: error while loading shared libraries: libfunc.so: cannot open shared object file: No such file or directory
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ ldd test_maps
+	linux-gate.so.1 =>  (0xf7fb7000)
+	libfunc.so => not found
+	libc.so.6 => /lib32/libc.so.6 (0xf7de4000)
+	/lib/ld-linux.so.2 (0xf7fb9000)
+
+4. ld.so.conf에 libfunc.so를 search할 수 있도록 path 정보 추가 후 db update
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ sudo vi /etc/ld.so.conf.d/libfunc.conf
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ sudo ldconfig -v
+/sbin/ldconfig.real: Path `/lib/x86_64-linux-gnu' given more than once
+/sbin/ldconfig.real: Path `/usr/lib/x86_64-linux-gnu' given more than once
+/usr/lib/x86_64-linux-gnu/libfakeroot:
+	libfakeroot-0.so -> libfakeroot-tcp.so
+/usr/local/lib:
+	liblxc.so.1 -> liblxc.so.1.4.0
+/home/guybrush/Project/github/hack/binhacks/process_memory_space:
+	libfunc.so -> libfunc.so
+...
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ sudo ldconfig -v | grep libfunc.so
+/sbin/ldconfig.real: Path `/lib/x86_64-linux-gnu' given more than once
+/sbin/ldconfig.real: Path `/usr/lib/x86_64-linux-gnu' given more than once
+/sbin/ldconfig.real: /lib/x86_64-linux-gnu/ld-2.23.so is the dynamic linker, ignoring
+
+	libfunc.so -> libfunc.so
+/sbin/ldconfig.real: /lib32/ld-2.23.so is the dynamic linker, ignoring
+
+/sbin/ldconfig.real: /libx32/ld-2.23.so is the dynamic linker, ignoring
+
+5. test_maps 재실행
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ ldd test_maps
+	linux-gate.so.1 =>  (0xf7f9b000)
+	libfunc.so => /home/guybrush/Project/github/hack/binhacks/process_memory_space/libfunc.so (0xf7f79000)
+	libc.so.6 => /lib32/libc.so.6 (0xf7dc5000)
+	/lib/ld-linux.so.2 (0xf7f9d000)
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ ./test_maps
+sum = 2
+
+
+
+
+
+
+
+1. Build된 binary(test_maps, libfunc.so)의 symbol table 확인
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ readelf -s test_maps
+
+Symbol table '.dynsym' contains 15 entries:
+   Num:    Value  Size Type    Bind   Vis      Ndx Name
+     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND
+     1: 00000000     0 NOTYPE  WEAK   DEFAULT  UND _ITM_deregisterTMCloneTab
+     2: 00000000     0 FUNC    GLOBAL DEFAULT  UND printf@GLIBC_2.0 (2)
+     3: 00000000     0 FUNC    GLOBAL DEFAULT  UND __stack_chk_fail@GLIBC_2.4 (3)
+     4: 00000000     0 NOTYPE  WEAK   DEFAULT  UND __gmon_start__
+     5: 00000000     0 FUNC    GLOBAL DEFAULT  UND __libc_start_main@GLIBC_2.0 (2)
+     6: 00000000     0 FUNC    GLOBAL DEFAULT  UND func
+     7: 00000000     0 NOTYPE  WEAK   DEFAULT  UND _Jv_RegisterClasses
+     8: 00000000     0 NOTYPE  WEAK   DEFAULT  UND _ITM_registerTMCloneTable
+     9: 0804a024     0 NOTYPE  GLOBAL DEFAULT   25 _edata
+    10: 0804a02c     0 NOTYPE  GLOBAL DEFAULT   26 _end
+    11: 080486ac     4 OBJECT  GLOBAL DEFAULT   16 _IO_stdin_used
+    12: 0804a024     0 NOTYPE  GLOBAL DEFAULT   26 __bss_start
+    13: 08048434     0 FUNC    GLOBAL DEFAULT   11 _init
+    14: 08048694     0 FUNC    GLOBAL DEFAULT   15 _fini
+
+Symbol table '.symtab' contains 77 entries:
+   Num:    Value  Size Type    Bind   Vis      Ndx Name
+     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND
+     1: 08048154     0 SECTION LOCAL  DEFAULT    1
+     2: 08048168     0 SECTION LOCAL  DEFAULT    2
+     3: 08048188     0 SECTION LOCAL  DEFAULT    3
+     4: 080481ac     0 SECTION LOCAL  DEFAULT    4
+     5: 080481e8     0 SECTION LOCAL  DEFAULT    5
+     6: 080482d8     0 SECTION LOCAL  DEFAULT    6
+     7: 080483be     0 SECTION LOCAL  DEFAULT    7
+     8: 080483dc     0 SECTION LOCAL  DEFAULT    8
+     9: 0804840c     0 SECTION LOCAL  DEFAULT    9
+    10: 08048414     0 SECTION LOCAL  DEFAULT   10
+    11: 08048434     0 SECTION LOCAL  DEFAULT   11
+    12: 08048460     0 SECTION LOCAL  DEFAULT   12
+    13: 080484b0     0 SECTION LOCAL  DEFAULT   13
+    14: 080484c0     0 SECTION LOCAL  DEFAULT   14
+    15: 08048694     0 SECTION LOCAL  DEFAULT   15
+    16: 080486a8     0 SECTION LOCAL  DEFAULT   16
+    17: 080486bc     0 SECTION LOCAL  DEFAULT   17
+    18: 080486e8     0 SECTION LOCAL  DEFAULT   18
+    19: 08049f00     0 SECTION LOCAL  DEFAULT   19
+    20: 08049f04     0 SECTION LOCAL  DEFAULT   20
+    21: 08049f08     0 SECTION LOCAL  DEFAULT   21
+    22: 08049f0c     0 SECTION LOCAL  DEFAULT   22
+    23: 08049ffc     0 SECTION LOCAL  DEFAULT   23
+    24: 0804a000     0 SECTION LOCAL  DEFAULT   24
+    25: 0804a01c     0 SECTION LOCAL  DEFAULT   25
+    26: 0804a024     0 SECTION LOCAL  DEFAULT   26
+    27: 00000000     0 SECTION LOCAL  DEFAULT   27
+    28: 00000000     0 SECTION LOCAL  DEFAULT   28
+    29: 00000000     0 SECTION LOCAL  DEFAULT   29
+    30: 00000000     0 SECTION LOCAL  DEFAULT   30
+    31: 00000000     0 SECTION LOCAL  DEFAULT   31
+    32: 00000000     0 SECTION LOCAL  DEFAULT   32
+    33: 00000000     0 FILE    LOCAL  DEFAULT  ABS crtstuff.c
+    34: 08049f08     0 OBJECT  LOCAL  DEFAULT   21 __JCR_LIST__
+    35: 08048500     0 FUNC    LOCAL  DEFAULT   14 deregister_tm_clones
+    36: 08048530     0 FUNC    LOCAL  DEFAULT   14 register_tm_clones
+    37: 08048570     0 FUNC    LOCAL  DEFAULT   14 __do_global_dtors_aux
+    38: 0804a024     1 OBJECT  LOCAL  DEFAULT   26 completed.7209
+    39: 08049f04     0 OBJECT  LOCAL  DEFAULT   20 __do_global_dtors_aux_fin
+    40: 08048590     0 FUNC    LOCAL  DEFAULT   14 frame_dummy
+    41: 08049f00     0 OBJECT  LOCAL  DEFAULT   19 __frame_dummy_init_array_
+    42: 00000000     0 FILE    LOCAL  DEFAULT  ABS test_maps.c
+    43: 00000000     0 FILE    LOCAL  DEFAULT  ABS crtstuff.c
+    44: 080487b0     0 OBJECT  LOCAL  DEFAULT   18 __FRAME_END__
+    45: 08049f08     0 OBJECT  LOCAL  DEFAULT   21 __JCR_END__
+    46: 00000000     0 FILE    LOCAL  DEFAULT  ABS
+    47: 08049f04     0 NOTYPE  LOCAL  DEFAULT   19 __init_array_end
+    48: 08049f0c     0 OBJECT  LOCAL  DEFAULT   22 _DYNAMIC
+    49: 08049f00     0 NOTYPE  LOCAL  DEFAULT   19 __init_array_start
+    50: 080486bc     0 NOTYPE  LOCAL  DEFAULT   17 __GNU_EH_FRAME_HDR
+    51: 0804a000     0 OBJECT  LOCAL  DEFAULT   24 _GLOBAL_OFFSET_TABLE_
+    52: 08048690     2 FUNC    GLOBAL DEFAULT   14 __libc_csu_fini
+    53: 00000000     0 NOTYPE  WEAK   DEFAULT  UND _ITM_deregisterTMCloneTab
+    54: 080484f0     4 FUNC    GLOBAL HIDDEN    14 __x86.get_pc_thunk.bx
+    55: 0804a01c     0 NOTYPE  WEAK   DEFAULT   25 data_start
+    56: 00000000     0 FUNC    GLOBAL DEFAULT  UND printf@@GLIBC_2.0
+    57: 0804a024     0 NOTYPE  GLOBAL DEFAULT   25 _edata
+    58: 08048694     0 FUNC    GLOBAL DEFAULT   15 _fini
+    59: 00000000     0 FUNC    GLOBAL DEFAULT  UND __stack_chk_fail@@GLIBC_2
+    60: 0804a01c     0 NOTYPE  GLOBAL DEFAULT   25 __data_start
+    61: 00000000     0 NOTYPE  WEAK   DEFAULT  UND __gmon_start__
+    62: 0804a020     0 OBJECT  GLOBAL HIDDEN    25 __dso_handle
+    63: 0804a028     4 OBJECT  GLOBAL DEFAULT   26 sum
+    64: 080486ac     4 OBJECT  GLOBAL DEFAULT   16 _IO_stdin_used
+    65: 00000000     0 FUNC    GLOBAL DEFAULT  UND __libc_start_main@@GLIBC_
+    66: 00000000     0 FUNC    GLOBAL DEFAULT  UND func
+    67: 08048630    93 FUNC    GLOBAL DEFAULT   14 __libc_csu_init
+    68: 0804a02c     0 NOTYPE  GLOBAL DEFAULT   26 _end
+    69: 080484c0     0 FUNC    GLOBAL DEFAULT   14 _start
+    70: 080486a8     4 OBJECT  GLOBAL DEFAULT   16 _fp_hw
+    71: 0804a024     0 NOTYPE  GLOBAL DEFAULT   26 __bss_start
+    72: 080485bb   113 FUNC    GLOBAL DEFAULT   14 main
+    73: 00000000     0 NOTYPE  WEAK   DEFAULT  UND _Jv_RegisterClasses
+    74: 0804a024     0 OBJECT  GLOBAL HIDDEN    25 __TMC_END__
+    75: 00000000     0 NOTYPE  WEAK   DEFAULT  UND _ITM_registerTMCloneTable
+    76: 08048434     0 FUNC    GLOBAL DEFAULT   11 _init
+
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ readelf -s libfunc.so
+
+Symbol table '.dynsym' contains 17 entries:
+   Num:    Value  Size Type    Bind   Vis      Ndx Name
+     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND
+     1: 00000000     0 NOTYPE  WEAK   DEFAULT  UND _ITM_deregisterTMCloneTab
+     2: 00000000     0 FUNC    WEAK   DEFAULT  UND __cxa_finalize@GLIBC_2.1.3 (2)
+     3: 00000000     0 FUNC    GLOBAL DEFAULT  UND malloc@GLIBC_2.0 (3)
+     4: 00000000     0 NOTYPE  WEAK   DEFAULT  UND __gmon_start__
+     5: 00000000     0 FUNC    GLOBAL DEFAULT  UND strncpy@GLIBC_2.0 (3)
+     6: 00000000     0 NOTYPE  WEAK   DEFAULT  UND _Jv_RegisterClasses
+     7: 00000000     0 NOTYPE  WEAK   DEFAULT  UND _ITM_registerTMCloneTable
+     8: 0000201c     0 NOTYPE  GLOBAL DEFAULT   23 _edata
+     9: 00002028     0 NOTYPE  GLOBAL DEFAULT   24 _end
+    10: 00002018     4 OBJECT  GLOBAL DEFAULT   23 arr
+    11: 00002020     4 OBJECT  GLOBAL DEFAULT   24 cp
+    12: 00002024     4 OBJECT  GLOBAL DEFAULT   24 arr2
+    13: 0000201c     0 NOTYPE  GLOBAL DEFAULT   24 __bss_start
+    14: 00000420     0 FUNC    GLOBAL DEFAULT    9 _init
+    15: 00000628     0 FUNC    GLOBAL DEFAULT   13 _fini
+    16: 000005c0   102 FUNC    GLOBAL DEFAULT   12 func
+
+Symbol table '.symtab' contains 68 entries:
+   Num:    Value  Size Type    Bind   Vis      Ndx Name
+     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND
+     1: 00000114     0 SECTION LOCAL  DEFAULT    1
+     2: 00000138     0 SECTION LOCAL  DEFAULT    2
+     3: 00000180     0 SECTION LOCAL  DEFAULT    3
+     4: 00000290     0 SECTION LOCAL  DEFAULT    4
+     5: 0000035e     0 SECTION LOCAL  DEFAULT    5
+     6: 00000380     0 SECTION LOCAL  DEFAULT    6
+     7: 000003b0     0 SECTION LOCAL  DEFAULT    7
+     8: 00000410     0 SECTION LOCAL  DEFAULT    8
+     9: 00000420     0 SECTION LOCAL  DEFAULT    9
+    10: 00000450     0 SECTION LOCAL  DEFAULT   10
+    11: 00000480     0 SECTION LOCAL  DEFAULT   11
+    12: 00000490     0 SECTION LOCAL  DEFAULT   12
+    13: 00000628     0 SECTION LOCAL  DEFAULT   13
+    14: 0000063c     0 SECTION LOCAL  DEFAULT   14
+    15: 00000648     0 SECTION LOCAL  DEFAULT   15
+    16: 00000664     0 SECTION LOCAL  DEFAULT   16
+    17: 00001ef4     0 SECTION LOCAL  DEFAULT   17
+    18: 00001ef8     0 SECTION LOCAL  DEFAULT   18
+    19: 00001efc     0 SECTION LOCAL  DEFAULT   19
+    20: 00001f00     0 SECTION LOCAL  DEFAULT   20
+    21: 00001fe0     0 SECTION LOCAL  DEFAULT   21
+    22: 00002000     0 SECTION LOCAL  DEFAULT   22
+    23: 00002014     0 SECTION LOCAL  DEFAULT   23
+    24: 0000201c     0 SECTION LOCAL  DEFAULT   24
+    25: 00000000     0 SECTION LOCAL  DEFAULT   25
+    26: 00000000     0 SECTION LOCAL  DEFAULT   26
+    27: 00000000     0 SECTION LOCAL  DEFAULT   27
+    28: 00000000     0 SECTION LOCAL  DEFAULT   28
+    29: 00000000     0 SECTION LOCAL  DEFAULT   29
+    30: 00000000     0 SECTION LOCAL  DEFAULT   30
+    31: 00000000     0 FILE    LOCAL  DEFAULT  ABS crtstuff.c
+    32: 00001efc     0 OBJECT  LOCAL  DEFAULT   19 __JCR_LIST__
+    33: 000004a0     0 FUNC    LOCAL  DEFAULT   12 deregister_tm_clones
+    34: 000004e0     0 FUNC    LOCAL  DEFAULT   12 register_tm_clones
+    35: 00000530     0 FUNC    LOCAL  DEFAULT   12 __do_global_dtors_aux
+    36: 0000201c     1 OBJECT  LOCAL  DEFAULT   24 completed.7209
+    37: 00001ef8     0 OBJECT  LOCAL  DEFAULT   18 __do_global_dtors_aux_fin
+    38: 00000580     0 FUNC    LOCAL  DEFAULT   12 frame_dummy
+    39: 00001ef4     0 OBJECT  LOCAL  DEFAULT   17 __frame_dummy_init_array_
+    40: 00000000     0 FILE    LOCAL  DEFAULT  ABS func.c
+    41: 00000000     0 FILE    LOCAL  DEFAULT  ABS crtstuff.c
+    42: 000006c4     0 OBJECT  LOCAL  DEFAULT   16 __FRAME_END__
+    43: 00001efc     0 OBJECT  LOCAL  DEFAULT   19 __JCR_END__
+    44: 00000000     0 FILE    LOCAL  DEFAULT  ABS
+    45: 00000490     4 FUNC    LOCAL  DEFAULT   12 __x86.get_pc_thunk.bx
+    46: 000005bc     0 FUNC    LOCAL  DEFAULT   12 __x86.get_pc_thunk.dx
+    47: 00002014     0 OBJECT  LOCAL  DEFAULT   23 __dso_handle
+    48: 00001f00     0 OBJECT  LOCAL  DEFAULT   20 _DYNAMIC
+    49: 00000648     0 NOTYPE  LOCAL  DEFAULT   15 __GNU_EH_FRAME_HDR
+    50: 0000201c     0 OBJECT  LOCAL  DEFAULT   23 __TMC_END__
+    51: 00002000     0 OBJECT  LOCAL  DEFAULT   22 _GLOBAL_OFFSET_TABLE_
+    52: 00000000     0 NOTYPE  WEAK   DEFAULT  UND _ITM_deregisterTMCloneTab
+    53: 0000201c     0 NOTYPE  GLOBAL DEFAULT   23 _edata
+    54: 00002020     4 OBJECT  GLOBAL DEFAULT   24 cp
+    55: 00000628     0 FUNC    GLOBAL DEFAULT   13 _fini
+    56: 00000000     0 FUNC    WEAK   DEFAULT  UND __cxa_finalize@@GLIBC_2.1
+    57: 00000000     0 FUNC    GLOBAL DEFAULT  UND malloc@@GLIBC_2.0
+    58: 00000000     0 NOTYPE  WEAK   DEFAULT  UND __gmon_start__
+    59: 000005c0   102 FUNC    GLOBAL DEFAULT   12 func
+    60: 00002028     0 NOTYPE  GLOBAL DEFAULT   24 _end
+    61: 00000000     0 FUNC    GLOBAL DEFAULT  UND strncpy@@GLIBC_2.0
+    62: 00002024     4 OBJECT  GLOBAL DEFAULT   24 arr2
+    63: 0000201c     0 NOTYPE  GLOBAL DEFAULT   24 __bss_start
+    64: 00000000     0 NOTYPE  WEAK   DEFAULT  UND _Jv_RegisterClasses
+    65: 00002018     4 OBJECT  GLOBAL DEFAULT   23 arr
+    66: 00000000     0 NOTYPE  WEAK   DEFAULT  UND _ITM_registerTMCloneTable
+    67: 00000420     0 FUNC    GLOBAL DEFAULT    9 _init
+
+
+2. Build 된 binary(test_maps, libfunc.so)의 Section Header 확인
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ readelf -S test_maps
+There are 36 section headers, starting at offset 0x1b6c:
+
+Section Headers:
+  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+  [ 0]                   NULL            00000000 000000 000000 00      0   0  0
+  [ 1] .interp           PROGBITS        08048154 000154 000013 00   A  0   0  1
+  [ 2] .note.ABI-tag     NOTE            08048168 000168 000020 00   A  0   0  4
+  [ 3] .note.gnu.build-i NOTE            08048188 000188 000024 00   A  0   0  4
+  [ 4] .gnu.hash         GNU_HASH        080481ac 0001ac 00003c 04   A  5   0  4
+  [ 5] .dynsym           DYNSYM          080481e8 0001e8 0000f0 10   A  6   1  4
+  [ 6] .dynstr           STRTAB          080482d8 0002d8 0000e5 00   A  0   0  1
+  [ 7] .gnu.version      VERSYM          080483be 0003be 00001e 02   A  5   0  2
+  [ 8] .gnu.version_r    VERNEED         080483dc 0003dc 000030 00   A  6   1  4
+  [ 9] .rel.dyn          REL             0804840c 00040c 000008 08   A  5   0  4
+  [10] .rel.plt          REL             08048414 000414 000020 08  AI  5  24  4
+  [11] .init             PROGBITS        08048434 000434 000023 00  AX  0   0  4
+  [12] .plt              PROGBITS        08048460 000460 000050 04  AX  0   0 16
+  [13] .plt.got          PROGBITS        080484b0 0004b0 000008 00  AX  0   0  8
+  [14] .text             PROGBITS        080484c0 0004c0 0001d2 00  AX  0   0 16
+  [15] .fini             PROGBITS        08048694 000694 000014 00  AX  0   0  4
+  [16] .rodata           PROGBITS        080486a8 0006a8 000012 00   A  0   0  4
+  [17] .eh_frame_hdr     PROGBITS        080486bc 0006bc 00002c 00   A  0   0  4
+  [18] .eh_frame         PROGBITS        080486e8 0006e8 0000cc 00   A  0   0  4
+  [19] .init_array       INIT_ARRAY      08049f00 000f00 000004 00  WA  0   0  4
+  [20] .fini_array       FINI_ARRAY      08049f04 000f04 000004 00  WA  0   0  4
+  [21] .jcr              PROGBITS        08049f08 000f08 000004 00  WA  0   0  4
+  [22] .dynamic          DYNAMIC         08049f0c 000f0c 0000f0 08  WA  6   0  4
+  [23] .got              PROGBITS        08049ffc 000ffc 000004 04  WA  0   0  4
+  [24] .got.plt          PROGBITS        0804a000 001000 00001c 04  WA  0   0  4
+  [25] .data             PROGBITS        0804a01c 00101c 000008 00  WA  0   0  4
+  [26] .bss              NOBITS          0804a024 001024 000008 00  WA  0   0  4
+  [27] .comment          PROGBITS        00000000 001024 000035 01  MS  0   0  1
+  [28] .debug_aranges    PROGBITS        00000000 001059 000020 00      0   0  1
+  [29] .debug_info       PROGBITS        00000000 001079 0000c7 00      0   0  1
+  [30] .debug_abbrev     PROGBITS        00000000 001140 00006d 00      0   0  1
+  [31] .debug_line       PROGBITS        00000000 0011ad 000043 00      0   0  1
+  [32] .debug_str        PROGBITS        00000000 0011f0 000108 01  MS  0   0  1
+  [33] .shstrtab         STRTAB          00000000 001a20 00014a 00      0   0  1
+  [34] .symtab           SYMTAB          00000000 0012f8 0004d0 10     35  52  4
+  [35] .strtab           STRTAB          00000000 0017c8 000258 00      0   0  1
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings)
+  I (info), L (link order), G (group), T (TLS), E (exclude), x (unknown)
+  O (extra OS processing required) o (OS specific), p (processor specific)
+
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ readelf -S libfunc.so
+There are 34 section headers, starting at offset 0x1a8c:
+
+Section Headers:
+  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+  [ 0]                   NULL            00000000 000000 000000 00      0   0  0
+  [ 1] .note.gnu.build-i NOTE            00000114 000114 000024 00   A  0   0  4
+  [ 2] .gnu.hash         GNU_HASH        00000138 000138 000048 04   A  3   0  4
+  [ 3] .dynsym           DYNSYM          00000180 000180 000110 10   A  4   1  4
+  [ 4] .dynstr           STRTAB          00000290 000290 0000cd 00   A  0   0  1
+  [ 5] .gnu.version      VERSYM          0000035e 00035e 000022 02   A  3   0  2
+  [ 6] .gnu.version_r    VERNEED         00000380 000380 000030 00   A  4   1  4
+  [ 7] .rel.dyn          REL             000003b0 0003b0 000060 08   A  3   0  4
+  [ 8] .rel.plt          REL             00000410 000410 000010 08  AI  3  22  4
+  [ 9] .init             PROGBITS        00000420 000420 000023 00  AX  0   0  4
+  [10] .plt              PROGBITS        00000450 000450 000030 04  AX  0   0 16
+  [11] .plt.got          PROGBITS        00000480 000480 000010 00  AX  0   0  8
+  [12] .text             PROGBITS        00000490 000490 000196 00  AX  0   0 16
+  [13] .fini             PROGBITS        00000628 000628 000014 00  AX  0   0  4
+  [14] .rodata           PROGBITS        0000063c 00063c 00000a 00   A  0   0  1
+  [15] .eh_frame_hdr     PROGBITS        00000648 000648 00001c 00   A  0   0  4
+  [16] .eh_frame         PROGBITS        00000664 000664 000064 00   A  0   0  4
+  [17] .init_array       INIT_ARRAY      00001ef4 000ef4 000004 00  WA  0   0  4
+  [18] .fini_array       FINI_ARRAY      00001ef8 000ef8 000004 00  WA  0   0  4
+  [19] .jcr              PROGBITS        00001efc 000efc 000004 00  WA  0   0  4
+  [20] .dynamic          DYNAMIC         00001f00 000f00 0000e0 08  WA  4   0  4
+  [21] .got              PROGBITS        00001fe0 000fe0 000020 04  WA  0   0  4
+  [22] .got.plt          PROGBITS        00002000 001000 000014 04  WA  0   0  4
+  [23] .data             PROGBITS        00002014 001014 000008 00  WA  0   0  4
+  [24] .bss              NOBITS          0000201c 00101c 00000c 00  WA  0   0  4
+  [25] .comment          PROGBITS        00000000 00101c 000035 01  MS  0   0  1
+  [26] .debug_aranges    PROGBITS        00000000 001051 000020 00      0   0  1
+  [27] .debug_info       PROGBITS        00000000 001071 0000d6 00      0   0  1
+  [28] .debug_abbrev     PROGBITS        00000000 001147 00007c 00      0   0  1
+  [29] .debug_line       PROGBITS        00000000 0011c3 00003e 00      0   0  1
+  [30] .debug_str        PROGBITS        00000000 001201 000109 01  MS  0   0  1
+  [31] .shstrtab         STRTAB          00000000 001958 000134 00      0   0  1
+  [32] .symtab           SYMTAB          00000000 00130c 000440 10     33  52  4
+  [33] .strtab           STRTAB          00000000 00174c 00020c 00      0   0  1
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings)
+  I (info), L (link order), G (group), T (TLS), E (exclude), x (unknown)
+  O (extra OS processing required) o (OS specific), p (processor specific)
+
+
+
+3. process 실행 후 process map 정보 확인
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/process_memory_space$ gdb -q ./test_maps
+Reading symbols from ./test_maps...done.
+(gdb) start
+Temporary breakpoint 1 at 0x80485cc: file test_maps.c, line 7.
+Starting program: /home/guybrush/Project/github/hack/binhacks/process_memory_space/test_maps
+
+Temporary breakpoint 1, main () at test_maps.c:7
+7	int main() {
+(gdb) shell ps -a
+  PID TTY          TIME CMD
+ 4126 pts/2    00:00:00 gdb
+ 4130 pts/2    00:00:00 test_maps
+ 4134 pts/2    00:00:00 ps
+(gdb) shell cat /proc/4130/maps
+08048000-08049000 r-xp 00000000 103:07 2101032                           /home/guybrush/Project/github/hack/binhacks/process_memory_space/test_maps
+08049000-0804a000 r--p 00000000 103:07 2101032                           /home/guybrush/Project/github/hack/binhacks/process_memory_space/test_maps
+0804a000-0804b000 rw-p 00001000 103:07 2101032                           /home/guybrush/Project/github/hack/binhacks/process_memory_space/test_maps
+f7e01000-f7e02000 rw-p 00000000 00:00 0
+f7e02000-f7faf000 r-xp 00000000 103:07 3538950                           /lib32/libc-2.23.so
+f7faf000-f7fb0000 ---p 001ad000 103:07 3538950                           /lib32/libc-2.23.so
+f7fb0000-f7fb2000 r--p 001ad000 103:07 3538950                           /lib32/libc-2.23.so
+f7fb2000-f7fb3000 rw-p 001af000 103:07 3538950                           /lib32/libc-2.23.so
+f7fb3000-f7fb6000 rw-p 00000000 00:00 0
+f7fb6000-f7fb7000 r-xp 00000000 103:07 2101031                           /home/guybrush/Project/github/hack/binhacks/process_memory_space/libfunc.so
+f7fb7000-f7fb8000 r--p 00000000 103:07 2101031                           /home/guybrush/Project/github/hack/binhacks/process_memory_space/libfunc.so
+f7fb8000-f7fb9000 rw-p 00001000 103:07 2101031                           /home/guybrush/Project/github/hack/binhacks/process_memory_space/libfunc.so
+f7fd4000-f7fd5000 rw-p 00000000 00:00 0
+f7fd5000-f7fd8000 r--p 00000000 00:00 0                                  [vvar]
+f7fd8000-f7fda000 r-xp 00000000 00:00 0                                  [vdso]
+f7fda000-f7ffc000 r-xp 00000000 103:07 3538948                           /lib32/ld-2.23.so
+f7ffc000-f7ffd000 r--p 00022000 103:07 3538948                           /lib32/ld-2.23.so
+f7ffd000-f7ffe000 rw-p 00023000 103:07 3538948                           /lib32/ld-2.23.so
+fffdd000-ffffe000 rw-p 00000000 00:00 0                                  [stack]
+(gdb)
+
+
+
+4. func() 함수 호출 직전 break 후 test_maps.c에 선언된 변수들의 위치를 확인
+   1) int var1 - 초기화되지 않은 지역변수
+   2) int *var2 - 초기화된 지역변수
+   3) int sum - 초기화되지 않은 전역변수
+
+
+(gdb) disassemble
+Dump of assembler code for function main:
+   0x080485bb <+0>:	lea    ecx,[esp+0x4]
+   0x080485bf <+4>:	and    esp,0xfffffff0
+   0x080485c2 <+7>:	push   DWORD PTR [ecx-0x4]
+   0x080485c5 <+10>:	push   ebp
+   0x080485c6 <+11>:	mov    ebp,esp
+   0x080485c8 <+13>:	push   ecx
+   0x080485c9 <+14>:	sub    esp,0x14
+=> 0x080485cc <+17>:	mov    eax,gs:0x14
+   0x080485d2 <+23>:	mov    DWORD PTR [ebp-0xc],eax
+   0x080485d5 <+26>:	xor    eax,eax
+   0x080485d7 <+28>:	lea    eax,[ebp-0x14]
+   0x080485da <+31>:	mov    DWORD PTR [ebp-0x10],eax
+   0x080485dd <+34>:	mov    DWORD PTR [ebp-0x14],0x1
+   0x080485e4 <+41>:	mov    eax,DWORD PTR [ebp-0x10]
+   0x080485e7 <+44>:	mov    edx,DWORD PTR [eax]
+   0x080485e9 <+46>:	mov    eax,DWORD PTR [ebp-0x14]
+   0x080485ec <+49>:	add    eax,edx
+   0x080485ee <+51>:	mov    ds:0x804a028,eax
+   0x080485f3 <+56>:	call   0x80484a0 <func@plt>
+   0x080485f8 <+61>:	mov    eax,ds:0x804a028
+   0x080485fd <+66>:	sub    esp,0x8
+   0x08048600 <+69>:	push   eax
+   0x08048601 <+70>:	push   0x80486b0
+   0x08048606 <+75>:	call   0x8048470 <printf@plt>
+   0x0804860b <+80>:	add    esp,0x10
+   0x0804860e <+83>:	mov    eax,0x0
+   0x08048613 <+88>:	mov    ecx,DWORD PTR [ebp-0xc]
+   0x08048616 <+91>:	xor    ecx,DWORD PTR gs:0x14
+   0x0804861d <+98>:	je     0x8048624 <main+105>
+   0x0804861f <+100>:	call   0x8048480 <__stack_chk_fail@plt>
+   0x08048624 <+105>:	mov    ecx,DWORD PTR [ebp-0x4]
+   0x08048627 <+108>:	leave
+   0x08048628 <+109>:	lea    esp,[ecx-0x4]
+   0x0804862b <+112>:	ret
+End of assembler dump.
+(gdb) b *main+56
+Breakpoint 2 at 0x80485f3: file test_maps.c, line 15.
+(gdb) c
+Continuing.
+
+Breakpoint 2, main () at test_maps.c:15
+15		func();
+(gdb) disassemble
+Dump of assembler code for function main:
+   0x080485bb <+0>:	lea    ecx,[esp+0x4]
+   0x080485bf <+4>:	and    esp,0xfffffff0
+   0x080485c2 <+7>:	push   DWORD PTR [ecx-0x4]
+   0x080485c5 <+10>:	push   ebp
+   0x080485c6 <+11>:	mov    ebp,esp
+   0x080485c8 <+13>:	push   ecx
+   0x080485c9 <+14>:	sub    esp,0x14
+   0x080485cc <+17>:	mov    eax,gs:0x14
+   0x080485d2 <+23>:	mov    DWORD PTR [ebp-0xc],eax
+   0x080485d5 <+26>:	xor    eax,eax
+   0x080485d7 <+28>:	lea    eax,[ebp-0x14]
+   0x080485da <+31>:	mov    DWORD PTR [ebp-0x10],eax
+   0x080485dd <+34>:	mov    DWORD PTR [ebp-0x14],0x1
+   0x080485e4 <+41>:	mov    eax,DWORD PTR [ebp-0x10]
+   0x080485e7 <+44>:	mov    edx,DWORD PTR [eax]
+   0x080485e9 <+46>:	mov    eax,DWORD PTR [ebp-0x14]
+   0x080485ec <+49>:	add    eax,edx
+   0x080485ee <+51>:	mov    ds:0x804a028,eax
+=> 0x080485f3 <+56>:	call   0x80484a0 <func@plt>
+   0x080485f8 <+61>:	mov    eax,ds:0x804a028
+   0x080485fd <+66>:	sub    esp,0x8
+   0x08048600 <+69>:	push   eax
+   0x08048601 <+70>:	push   0x80486b0
+   0x08048606 <+75>:	call   0x8048470 <printf@plt>
+   0x0804860b <+80>:	add    esp,0x10
+   0x0804860e <+83>:	mov    eax,0x0
+   0x08048613 <+88>:	mov    ecx,DWORD PTR [ebp-0xc]
+   0x08048616 <+91>:	xor    ecx,DWORD PTR gs:0x14
+   0x0804861d <+98>:	je     0x8048624 <main+105>
+   0x0804861f <+100>:	call   0x8048480 <__stack_chk_fail@plt>
+   0x08048624 <+105>:	mov    ecx,DWORD PTR [ebp-0x4]
+   0x08048627 <+108>:	leave
+   0x08048628 <+109>:	lea    esp,[ecx-0x4]
+   0x0804862b <+112>:	ret
+End of assembler dump.
+(gdb)
+
+
+(gdb) p var1
+$1 = 1
+(gdb) p &var1
+$2 = (int *) 0xffffcdb4
+(gdb) p *var1
+Cannot access memory at address 0x1
+
+(gdb) p var2
+$3 = (int *) 0xffffcdb4
+(gdb) p &var2
+$4 = (int **) 0xffffcdb8
+(gdb) p *var2
+$5 = 1
+
+(gdb) p sum
+$6 = 2
+(gdb) p &sum
+$7 = (int *) 0x804a028 <sum>
+(gdb) p *sum
+Cannot access memory at address 0x2
+(gdb)
+
+
+   1) int var1 - 초기화되지 않은 지역변수
+      => 지역변수 var1은 메모리 0xffffcdb4 주소에 위치하고 있으며, 이 위치는 process map에서 stack 영역임을 알 수 있다.
+
+fffdd000-ffffe000 rw-p 00000000 00:00 0                                  [stack]
+
+      *** stack 영역은 당연한 이야기지만, binary 상태에서는 할당되지 않고, process 실행 후에 할당이 된다.
+          즉, binary 상태에서 readelf로 section 정보를 확인해도 stack, heap 영역에 대한 section 정보는 확인할 수 없다.
+      *** executable binary가 dynamic linking 하는 shared library들도 모두 하나의 stack을 공유하여 같이 사용한다.
+          즉, test_maps 실행 후 test_maps가 사용하는 stack과 test_maps가 dynamic loading 하는 shared library의 코드들이 사용하는 stack은 동일하다.
+
+
+   2) int *var2 - 초기화된 지역변수
+      => 지역변수 var2는 메모리 0xffffcdb8 주소에 위치하고 있으며, 이 위치 또한 process map에서 stack 영역임을 알 수 있다.
+      => var2 변수의 값 즉, 0xffffcdb8 주소에 들어가 있는 값이 0xffffcdb4(지역변수 var1의 주소)이며, var2가 가리키는 곳의 값 즉,
+         0xffffcdb4(var1 주소)의 값은 1이 된다.
+
+   3) int sum - 초기화되지 않은 전역변수
+      => 초기화되지 않은 전역변수 sum은 메모리 0x0804a028 주소에 위치하고 있으며, 이 위치는 process map에서 data segment 영역임을 알 수 있다.
+         (process 실행 후의 memory map 영역은 segment로 구분, 실행 전 binary 상태에서의 memory 영역은 section으로 구분한다.(아직 실행전 상태))
+
+0804a000-0804b000 rw-p 00001000 103:07 2101032                           /home/guybrush/Project/github/hack/binhacks/process_memory_space/test_maps
+
+
+      => 좀 더 정확한 위치 확인을 위해, test_maps binary의 section header 정보를 확인해보면, .bss section에 위치하고 있음을 알 수 있다.
+         (.bss	0x0804a024 ~ 0x0804a02c(0x0804a024 + size 0x8))
+
+  [25] .data             PROGBITS        0804a01c 00101c 000008 00  WA  0   0  4
+  [26] .bss              NOBITS          0804a024 001024 000008 00  WA  0   0  4
+
+      *** 위에서 알 수 있는 것처럼,
+          stack, heap과는 다르게 전역변수를 할당하는 data segment는 binary별로(test_maps, libfunc.so) 별도의 메모리 주소 공간을 할당받게 된다.
+
+
+
+
+
+5. func() 함수 리턴 직전 break 후 func.c에 선언된 변수들의 위치를 확인
+   1) char *arr - 초기화된 전역변수
+   2) char *arr2 - 초기화되지 않은 전역변수
+   3) char *cp - 초기화되지 않은 전역변수
+   4) int var3 - 초기화되지 않은 지역변수
+
+
+(gdb) b func
+Breakpoint 3 at 0xf7fb65d2: file func.c, line 12.
+
+(gdb) r
+Starting program: /home/guybrush/Project/github/hack/binhacks/process_memory_space/test_maps
+
+Breakpoint 2, main () at test_maps.c:15
+15		func();
+(gdb) c
+Continuing.
+
+Breakpoint 3, func () at func.c:12
+12		arr2 = (char *)malloc(10);
+(gdb) disassemble
+Dump of assembler code for function func:
+   0xf7fb65c0 <+0>:	push   ebp
+   0xf7fb65c1 <+1>:	mov    ebp,esp
+   0xf7fb65c3 <+3>:	push   ebx
+   0xf7fb65c4 <+4>:	sub    esp,0x14
+   0xf7fb65c7 <+7>:	call   0xf7fb6490 <__x86.get_pc_thunk.bx>
+   0xf7fb65cc <+12>:	add    ebx,0x1a34
+=> 0xf7fb65d2 <+18>:	sub    esp,0xc
+   0xf7fb65d5 <+21>:	push   0xa
+   0xf7fb65d7 <+23>:	call   0xf7fb6460 <malloc@plt>
+   0xf7fb65dc <+28>:	add    esp,0x10
+   0xf7fb65df <+31>:	mov    edx,eax
+   0xf7fb65e1 <+33>:	mov    eax,DWORD PTR [ebx-0x10]
+   0xf7fb65e7 <+39>:	mov    DWORD PTR [eax],edx
+   0xf7fb65e9 <+41>:	mov    eax,DWORD PTR [ebx-0x10]
+   0xf7fb65ef <+47>:	mov    eax,DWORD PTR [eax]
+   0xf7fb65f1 <+49>:	sub    esp,0x4
+   0xf7fb65f4 <+52>:	push   0x9
+   0xf7fb65f6 <+54>:	lea    edx,[ebx-0x19c0]
+   0xf7fb65fc <+60>:	push   edx
+   0xf7fb65fd <+61>:	push   eax
+   0xf7fb65fe <+62>:	call   0xf7fb6470 <strncpy@plt>
+   0xf7fb6603 <+67>:	add    esp,0x10
+   0xf7fb6606 <+70>:	mov    eax,DWORD PTR [ebx-0x8]
+   0xf7fb660c <+76>:	mov    eax,DWORD PTR [eax]
+   0xf7fb660e <+78>:	lea    edx,[eax+0x2]
+   0xf7fb6611 <+81>:	mov    eax,DWORD PTR [ebx-0x1c]
+   0xf7fb6617 <+87>:	mov    DWORD PTR [eax],edx
+   0xf7fb6619 <+89>:	mov    DWORD PTR [ebp-0xc],0x20
+   0xf7fb6620 <+96>:	nop
+   0xf7fb6621 <+97>:	mov    ebx,DWORD PTR [ebp-0x4]
+   0xf7fb6624 <+100>:	leave
+   0xf7fb6625 <+101>:	ret
+End of assembler dump.
+(gdb) b *func+100
+Breakpoint 4 at 0xf7fb6624: file func.c, line 20.
+(gdb) c
+Continuing.
+
+Breakpoint 4, 0xf7fb6624 in func () at func.c:20
+20	}
+(gdb) disassemble
+Dump of assembler code for function func:
+   0xf7fb65c0 <+0>:	push   ebp
+   0xf7fb65c1 <+1>:	mov    ebp,esp
+   0xf7fb65c3 <+3>:	push   ebx
+   0xf7fb65c4 <+4>:	sub    esp,0x14
+   0xf7fb65c7 <+7>:	call   0xf7fb6490 <__x86.get_pc_thunk.bx>
+   0xf7fb65cc <+12>:	add    ebx,0x1a34
+   0xf7fb65d2 <+18>:	sub    esp,0xc
+   0xf7fb65d5 <+21>:	push   0xa
+   0xf7fb65d7 <+23>:	call   0xf7fb6460 <malloc@plt>
+   0xf7fb65dc <+28>:	add    esp,0x10
+   0xf7fb65df <+31>:	mov    edx,eax
+   0xf7fb65e1 <+33>:	mov    eax,DWORD PTR [ebx-0x10]
+   0xf7fb65e7 <+39>:	mov    DWORD PTR [eax],edx
+   0xf7fb65e9 <+41>:	mov    eax,DWORD PTR [ebx-0x10]
+   0xf7fb65ef <+47>:	mov    eax,DWORD PTR [eax]
+   0xf7fb65f1 <+49>:	sub    esp,0x4
+   0xf7fb65f4 <+52>:	push   0x9
+   0xf7fb65f6 <+54>:	lea    edx,[ebx-0x19c0]
+   0xf7fb65fc <+60>:	push   edx
+   0xf7fb65fd <+61>:	push   eax
+   0xf7fb65fe <+62>:	call   0xf7fb6470 <strncpy@plt>
+   0xf7fb6603 <+67>:	add    esp,0x10
+   0xf7fb6606 <+70>:	mov    eax,DWORD PTR [ebx-0x8]
+   0xf7fb660c <+76>:	mov    eax,DWORD PTR [eax]
+   0xf7fb660e <+78>:	lea    edx,[eax+0x2]
+   0xf7fb6611 <+81>:	mov    eax,DWORD PTR [ebx-0x1c]
+   0xf7fb6617 <+87>:	mov    DWORD PTR [eax],edx
+   0xf7fb6619 <+89>:	mov    DWORD PTR [ebp-0xc],0x20
+   0xf7fb6620 <+96>:	nop
+   0xf7fb6621 <+97>:	mov    ebx,DWORD PTR [ebp-0x4]
+=> 0xf7fb6624 <+100>:	leave
+   0xf7fb6625 <+101>:	ret
+End of assembler dump.
+(gdb)
+
+
+(gdb) p arr
+$8 = 0xf7fb663c "SEC"
+(gdb) p &arr
+$9 = (char **) 0xf7fb8018 <arr>
+(gdb) p *arr
+$10 = 83 'S'
+
+(gdb) p arr2
+$11 = 0x804b008 "2XSEC"
+(gdb) p &arr2
+$12 = (char **) 0xf7fb8024 <arr2>
+(gdb) p *arr2
+$13 = 50 '2'
+
+(gdb) p cp
+$14 = 0xf7fb663e "C"
+(gdb) p &cp
+$15 = (char **) 0xf7fb8020 <cp>
+(gdb) p *cp
+$16 = 67 'C'
+
+(gdb) p var3
+$17 = 32
+(gdb) p &var3
+$18 = (int *) 0xffffcd9c
+(gdb) p *var3
+Cannot access memory at address 0x20
+(gdb)
+
+
+*** 참고 - dynamic loading 된 so의 process memory space 위치 계산
+1) libfunc.so의 code segment 시작주소가 0xf7fb6000 이며(x86에서 executable binary의 code segment 시작주소는 0x08048000으로 고정),
+
+f7fb6000-f7fb7000 r-xp 00000000 103:07 2101031                           /home/guybrush/Project/github/hack/binhacks/process_memory_space/libfunc.so
+f7fb7000-f7fb8000 r--p 00000000 103:07 2101031                           /home/guybrush/Project/github/hack/binhacks/process_memory_space/libfunc.so
+f7fb8000-f7fb9000 rw-p 00001000 103:07 2101031                           /home/guybrush/Project/github/hack/binhacks/process_memory_space/libfunc.so
+
+2) libfunc.so의 data segment 시작주소는 0xf7fb8000 인데, readelf를 통해 확인해본 libfunc.so의 section header 정보를 보면,
+
+  [22] .got.plt          PROGBITS        00002000(code segment 시작주소로 부터의 상대주소(offset) 001000 000014 04  WA  0   0  4
+  [23] .data             PROGBITS        00002014(code segment 시작주소로 부터의 상대주소(offset) 001014 000008 00  WA  0   0  4
+  [24] .bss              NOBITS          0000201c(code segment 시작주소로 부터의 상대주소(offset) 00101c 00000c 00  WA  0   0  4
+
+3) 0xf7fb6000(libfunc.so code segment 시작주소) + 0x2000(.got.plt section의 offset(상대주소)) = 0xf7fb8000(libfunc.so의 data segment 시작주소)
+   즉, .got.plt section의 시작주소가 실제 libfunc.so의 data segment 시작주소와 동일함을 알 수 있다.
+
+4) .got.plt section의 size가 0x14, .data section size가 0x8, .bss section size가 0xc 인것으로 보아,
+   libfunc.so이 data segment는 .got.plt를 시작으로 .data, .bss 가 연속으로 할당되어 있음을 알 수 있다.
+
+0xf7fb6000(libfunc.so code segment 시작주소) + 0x2000(.got.plt section의 offset(상대주소)) = 0xf7fb8000(libfunc.so의 data segment 시작주소)
+0xf7fb6000(libfunc.so code segment 시작주소) + 0x2014(.data section의 offset(상대주소)) = 0xf7fb8014(libfunc.so의 data segment에서 .data section의 시작주소)
+0xf7fb6000(libfunc.so code segment 시작주소) + 0x201c(.bss section의 offset(상대주소)) = 0xf7fb801c(libfunc.so의 data segment에서 .bss section의 시작주소)
+
+5) .got.plt section이 data segment에 위치하는 것은 아마도, runtime에 function address를 update 해주어야 하는 것 때문일 것으로 예상됨
+
+
+
+
+   1) char *arr - 초기화된 전역변수
+      => 초기화된 전역변수 arr은 메모리 0xf7fb8018 주소에 위치하고 있으며, 이 위치는 process map에서 data segment 영역임을 알 수 있다.
+
+f7fb8000-f7fb9000 rw-p 00001000 103:07 2101031                           /home/guybrush/Project/github/hack/binhacks/process_memory_space/libfunc.so
+
+      => data segment 영역이 test_maps와 분리되어 있음을 확인할 수 있다.
+
+0804a000-0804b000 rw-p 00001000 103:07 6818266                           /home/guybrush/Project/github/hack/binhacks/test_maps
+
+      => libfunc.so의 data segment 영역에서도 .data section에 위치하고 있음을 확인할 수 있다.
+
+.data	0xf7fb8014 ~ 0xf7fb801c
+
+
+   2) char *arr2 - 초기화되지 않은 전역변수
+      => 초기화되지 않은 전역변수 arr2는 메모리 0xf7fb8024 주소에 위치하고 있으며, 이 위치는 process map에서 data segment 영역임을 알 수 있다.
+      => 또한, data segment 영역에서도 .bss section에 위치하고 있음을 확인할 수 있다.
+
+.bss	0xf7fb801c ~ 0xf7fb8028
+
+
+   3) char *cp - 초기화되지 않은 전역변수
+      => 초기화되지 않은 전역변수 cp는 메모리 0xf7fb8020 주소에 위치하고 있으며, 이 위치는 process map에서 data segment 영역임을 알 수 있다.
+      => 또한, data segment 영역에서도 .bss section에 위치하고 있음을 확인할 수 있다.
+
+   4) int var3 - 초기화되지 않은 지역변수
+      => 초기화되지 않은 지역변수 var3는 메모리 0xffffcd9c 주소에 위치하고 있으며, 이 위치는 process map에서 stack 영역임을 알 수 있다.
+
+fffdd000-ffffe000 rw-p 00000000 00:00 0                                  [stack]
+
+
+
+** 결론적으로,
+   1) 지역변수는 초기화 여부에 관계없이 무조건 stack 영역에 할당됨
+   2) 전역변수는 모두 data segment 영역에 할당되지만, 초기화 여부에 따라 section 위치가 달라지며,
+      (1) 초기화된 전역변수는 .data section에 할당
+      (2) 초기화되지 않은 전역변수는 .bss section에 할당
+
+
+
+
+
