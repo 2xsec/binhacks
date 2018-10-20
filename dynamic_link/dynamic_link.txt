@@ -1,37 +1,36 @@
 
 
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ sudo sysctl kernel.randomize_va_space
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ sudo sysctl kernel.randomize_va_space
 kernel.randomize_va_space = 0
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ gcc -c main.c -m32
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ gcc -c add.c -m32 -fPIC
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ gcc -c sub.c -m32 -fPIC
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ gcc -o libcalc.so add.o sub.o -shared -m32
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ gcc -o sum-d main.o -L. -lcalc -m32
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ ll sum-d
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ gcc -c main.c -m32
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ gcc -c add.c -m32 -fPIC
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ gcc -c sub.c -m32 -fPIC
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ gcc -o libcalc.so add.o sub.o -shared -m32
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ gcc -o sum-d main.o -L. -lcalc -m32
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ ll sum-d
 -rwxrwxr-x 1 guybrush guybrush 7456 10월  7 18:39 sum-d*
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ file sum-d
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ file sum-d
 sum-d: ELF 32-bit LSB executable, Intel 80386, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux.so.2, for GNU/Linux 2.6.32, BuildID[sha1]=09d99f7912f5d00861e1730be49f2538831dc0c8, not stripped
 
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ ./sum-d 
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ ./sum-d
 ./sum-d: error while loading shared libraries: libcalc.so: cannot open shared object file: No such file or directory
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$
 
 
 
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ cd /etc/ld.so.conf.d/
-guybrush@nt900x5t:/etc/ld.so.conf.d$ sudo gedit libcalc.conf 
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ cd /etc/ld.so.conf.d/
+guybrush@nt900x5t:/etc/ld.so.conf.d$ sudo gedit libcalc.conf
 
-=> /home/guybrush/Project/github/hack/dynamic_link
-
-
+=> /home/guybrush/Project/github/hack/binhacks/dynamic_link
 
 
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ sudo ldconfig -v
+
+guybrush@nt900x5t:/etc/ld.so.conf.d$ sudo ldconfig -v
 /sbin/ldconfig.real: Path `/lib/x86_64-linux-gnu' given more than once
 /sbin/ldconfig.real: Path `/usr/lib/x86_64-linux-gnu' given more than once
 /usr/lib/x86_64-linux-gnu/libfakeroot:
 	libfakeroot-0.so -> libfakeroot-tcp.so
-/home/guybrush/Project/github/hack/dynamic_link:
+/home/guybrush/Project/github/hack/binhacks/dynamic_link:
 	libcalc.so -> libcalc.so
 /usr/local/lib:
 	liblxc.so.1 -> liblxc.so.1.4.0
@@ -39,17 +38,20 @@ guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ sudo ldconfig -v
 	libfunc.so -> libfunc.so
 /lib/x86_64-linux-gnu:
 	libsepol.so.1 -> libsepol.so.1
+	libslang.so.2 -> libslang.so.2.3.0
+	libselinux.so.1 -> libselinux.so.1
+
 
 ............
 
 
 
 guybrush@nt900x5t:/etc/ld.so.conf.d$ cd -
-/home/guybrush/Project/github/hack/dynamic_link
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ ./sum-d 
+/home/guybrush/Project/github/hack/binhacks/dynamic_link
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ ./sum-d
 sum = 3
 
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ 
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$
 
 
 
@@ -61,7 +63,7 @@ guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
 
 1. libcalc.so 파일 구조 확인
 
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ readelf -h libcalc.so
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ readelf -h libcalc.so
 ELF Header:
   Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
   Class:                             ELF32
@@ -82,13 +84,56 @@ ELF Header:
   Size of section headers:           40 (bytes)
   Number of section headers:         27
   Section header string table index: 24
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$
 
 => libcalc.so의 ELF header에서 Type을 확인해보면, DYN 즉, shared object file임을 알 수 있다.
 
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ readelf -S libcalc.so
+There are 27 section headers, starting at offset 0x16e8:
+
+Section Headers:
+  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+  [ 0]                   NULL            00000000 000000 000000 00      0   0  0
+  [ 1] .note.gnu.build-i NOTE            00000114 000114 000024 00   A  0   0  4
+  [ 2] .gnu.hash         GNU_HASH        00000138 000138 000044 04   A  3   0  4
+  [ 3] .dynsym           DYNSYM          0000017c 00017c 0000e0 10   A  4   1  4
+  [ 4] .dynstr           STRTAB          0000025c 00025c 0000af 00   A  0   0  1
+  [ 5] .gnu.version      VERSYM          0000030c 00030c 00001c 02   A  3   0  2
+  [ 6] .gnu.version_r    VERNEED         00000328 000328 000020 00   A  4   1  4
+  [ 7] .rel.dyn          REL             00000348 000348 000040 08   A  3   0  4
+  [ 8] .init             PROGBITS        00000388 000388 000023 00  AX  0   0  4
+  [ 9] .plt              PROGBITS        000003b0 0003b0 000010 04  AX  0   0 16
+  [10] .plt.got          PROGBITS        000003c0 0003c0 000010 00  AX  0   0  8
+  [11] .text             PROGBITS        000003d0 0003d0 000160 00  AX  0   0 16
+  [12] .fini             PROGBITS        00000530 000530 000014 00  AX  0   0  4
+  [13] .eh_frame_hdr     PROGBITS        00000544 000544 00002c 00   A  0   0  4
+  [14] .eh_frame         PROGBITS        00000570 000570 000094 00   A  0   0  4
+  [15] .init_array       INIT_ARRAY      00001f18 000f18 000004 00  WA  0   0  4
+  [16] .fini_array       FINI_ARRAY      00001f1c 000f1c 000004 00  WA  0   0  4
+  [17] .jcr              PROGBITS        00001f20 000f20 000004 00  WA  0   0  4
+  [18] .dynamic          DYNAMIC         00001f24 000f24 0000c8 08  WA  4   0  4
+  [19] .got              PROGBITS        00001fec 000fec 000014 04  WA  0   0  4
+  [20] .got.plt          PROGBITS        00002000 001000 00000c 04  WA  0   0  4
+  [21] .data             PROGBITS        0000200c 00100c 000004 00  WA  0   0  4
+  [22] .bss              NOBITS          00002010 001010 000008 00  WA  0   0  4
+  [23] .comment          PROGBITS        00000000 001010 000035 01  MS  0   0  1
+  [24] .shstrtab         STRTAB          00000000 001605 0000e3 00      0   0  1
+  [25] .symtab           SYMTAB          00000000 001048 0003c0 10     26  47  4
+  [26] .strtab           STRTAB          00000000 001408 0001fd 00      0   0  1
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings)
+  I (info), L (link order), G (group), T (TLS), E (exclude), x (unknown)
+  O (extra OS processing required) o (OS specific), p (processor specific)
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$
+
+
+
+
+
 2. sum-d 파일 구조 확인
 
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ readelf -S sum-d
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ readelf -S sum-d
 There are 31 section headers, starting at offset 0x1848:
 
 Section Headers:
@@ -128,7 +173,7 @@ Key to Flags:
   W (write), A (alloc), X (execute), M (merge), S (strings)
   I (info), L (link order), G (group), T (TLS), E (exclude), x (unknown)
   O (extra OS processing required) o (OS specific), p (processor specific)
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$
 
 
 1) .interp section
@@ -143,19 +188,19 @@ guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
 
 5) sum-d binary의 .interp section 확인
 
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ readelf -p .interp sum-d
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ readelf -p .interp sum-d
 
 String dump of section '.interp':
   [     0]  /lib/ld-linux.so.2
 
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$
 
 => .interp section의 내용을 string으로 확인해보면(-p 옵션) "/lib/ld-linux.so.2"라는 string이 입력되어 있음을 알 수 있고,
 
    해당 string의 길이는 18임을 확인할 수 있다.
 
 
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ readelf -l sum-d
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ readelf -l sum-d
 
 Elf file type is EXEC (Executable file)
 Entry point 0x80484f0
@@ -185,7 +230,7 @@ Program Headers:
    06     .eh_frame_hdr 
    07     
    08     .init_array .fini_array .jcr .dynamic .got 
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$
 
 => Program Header의 INTERP section 정보를 확인해보면, size가 0x13(=19)으로 위의 .interp section의 string에서 확인한 것처럼 "/lib/ld-linux.so.2" string 길이 18에 null을 포함한 총 길이 19가 설정되었음을
    알 수 있다.
@@ -193,7 +238,7 @@ guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
 
 6) sum-d binary의 dynamic section 확인(-d)
 
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ readelf -d sum-d 
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ readelf -d sum-d
 
 Dynamic section at offset 0xf0c contains 25 entries:
   Tag        Type                         Name/Value
@@ -222,7 +267,7 @@ Dynamic section at offset 0xf0c contains 25 entries:
  0x6fffffff (VERNEEDNUM)                 1
  0x6ffffff0 (VERSYM)                     0x80483d6
  0x00000000 (NULL)                       0x0
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$
 
 => runtime에 libcalc.so, libc.so.6 2개의 library를 dynamic loading 하기 위해, 
  0x00000001 (NEEDED)                     Shared library: [libcalc.so]
@@ -232,25 +277,25 @@ guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
 
 
 
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ ./sum-d
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ ./sum-d
 sum = 3
 
 
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ ps -a
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ ps -a
   PID TTY          TIME CMD
-11285 pts/1    00:00:00 sum-d
-11304 pts/2    00:00:00 ps
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ cat /proc/11285/maps 
-08048000-08049000 r-xp 00000000 103:07 6558395                           /home/guybrush/Project/github/hack/dynamic_link/sum-d
-08049000-0804a000 r--p 00000000 103:07 6558395                           /home/guybrush/Project/github/hack/dynamic_link/sum-d
-0804a000-0804b000 rw-p 00001000 103:07 6558395                           /home/guybrush/Project/github/hack/dynamic_link/sum-d
-0804b000-0806c000 rw-p 00000000 00:00 0                                  [heap]
+11665 pts/1    00:00:00 sum-d
+11743 pts/2    00:00:00 ps
 
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ cat /proc/11665/maps
+08048000-08049000 r-xp 00000000 103:07 6558389                           /home/guybrush/Project/github/hack/binhacks/dynamic_link/sum-d
+08049000-0804a000 r--p 00000000 103:07 6558389                           /home/guybrush/Project/github/hack/binhacks/dynamic_link/sum-d
+0804a000-0804b000 rw-p 00001000 103:07 6558389                           /home/guybrush/Project/github/hack/binhacks/dynamic_link/sum-d
+0804b000-0806c000 rw-p 00000000 00:00 0                                  [heap]
 
 => 실행 binary(sum-d)의 process map 영역 + heap 영역
 
 
-f7e01000-f7e02000 rw-p 00000000 00:00 0		<= for page alignment ???. size is 0x1000
+f7e01000-f7e02000 rw-p 00000000 00:00 0				<= for page alignment ???. size is 0x1000
 
 
 f7e02000-f7faf000 r-xp 00000000 103:07 3538950                           /lib32/libc-2.23.so
@@ -258,26 +303,26 @@ f7faf000-f7fb0000 ---p 001ad000 103:07 3538950                           /lib32/
 f7fb0000-f7fb2000 r--p 001ad000 103:07 3538950                           /lib32/libc-2.23.so
 f7fb2000-f7fb3000 rw-p 001af000 103:07 3538950                           /lib32/libc-2.23.so
 
-
 => shared library(libc.so)의 process map 영역
 
 
-f7fb3000-f7fb6000 rw-p 00000000 00:00 0		<= for page alignment ???. size is 0x3000
+f7fb3000-f7fb6000 rw-p 00000000 00:00 0				<= for page alignment ???. size is 0x3000
 
 
-f7fb6000-f7fb7000 r-xp 00000000 103:07 6558392                           /home/guybrush/Project/github/hack/dynamic_link/libcalc.so
-f7fb7000-f7fb8000 r--p 00000000 103:07 6558392                           /home/guybrush/Project/github/hack/dynamic_link/libcalc.so
-f7fb8000-f7fb9000 rw-p 00001000 103:07 6558392                           /home/guybrush/Project/github/hack/dynamic_link/libcalc.so
-
+f7fb6000-f7fb7000 r-xp 00000000 103:07 6558388                           /home/guybrush/Project/github/hack/binhacks/dynamic_link/libcalc.so
+f7fb7000-f7fb8000 r--p 00000000 103:07 6558388                           /home/guybrush/Project/github/hack/binhacks/dynamic_link/libcalc.so
+f7fb8000-f7fb9000 rw-p 00001000 103:07 6558388                           /home/guybrush/Project/github/hack/binhacks/dynamic_link/libcalc.so
 
 => shared library(libcalc.so)의 process map 영역
 
 
-f7fd4000-f7fd5000 rw-p 00000000 00:00 0		<= for page alignment ???. size is 0x1000
+f7fd4000-f7fd5000 rw-p 00000000 00:00 0				<= for page alignment ???. size is 0x1000
 
 
 f7fd5000-f7fd8000 r--p 00000000 00:00 0                                  [vvar]
 f7fd8000-f7fda000 r-xp 00000000 00:00 0                                  [vdso]
+
+
 f7fda000-f7ffc000 r-xp 00000000 103:07 3538948                           /lib32/ld-2.23.so
 f7ffc000-f7ffd000 r--p 00022000 103:07 3538948                           /lib32/ld-2.23.so
 f7ffd000-f7ffe000 rw-p 00023000 103:07 3538948                           /lib32/ld-2.23.so
@@ -289,10 +334,11 @@ f7ffd000-f7ffe000 rw-p 00023000 103:07 3538948                           /lib32/
 fffdd000-ffffe000 rw-p 00000000 00:00 0                                  [stack]
 
 
-=> stack 영역
+=> sum-d process의 stack 영역
 
 
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$
+
 
 
 
@@ -327,10 +373,10 @@ guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
 
 
 
+* libcalc.so의 add, sub 함수 코드 확인
 
 
-
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ gdb -q libcalc.so
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ gdb -q libcalc.so
 Reading symbols from libcalc.so...(no debugging symbols found)...done.
 (gdb) disassemble add
 Dump of assembler code for function add:
@@ -355,7 +401,8 @@ Dump of assembler code for function sub:
    0x0000052e <+19>:	pop    ebp
    0x0000052f <+20>:	ret    
 End of assembler dump.
-(gdb) 
+(gdb)
+
 
 
 
@@ -371,12 +418,9 @@ sum-d에서 처음 호출되는 add 함수와 두번째 호출되는 add 함수�
 
 1. add 함수의 첫번째 호출 동작 분석
 
-
-guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ gdb -q sum-d
+guybrush@nt900x5t:~/Project/github/hack/binhacks/dynamic_link$ gdb -q sum-d
 Reading symbols from sum-d...(no debugging symbols found)...done.
-(gdb) disassemble 
-No frame selected.
-(gdb) disassemble main 
+(gdb) disassemble main
 Dump of assembler code for function main:
    0x080485eb <+0>:	lea    ecx,[esp+0x4]
    0x080485ef <+4>:	and    esp,0xfffffff0
@@ -417,12 +461,14 @@ Dump of assembler code for function main:
    0x0804865b <+112>:	lea    esp,[ecx-0x4]
    0x0804865e <+115>:	ret    
 End of assembler dump.
+(gdb)
+
 (gdb) b *main+24
 Breakpoint 1 at 0x8048603
 (gdb) b *main+43
 Breakpoint 2 at 0x8048616
 (gdb) r
-Starting program: /home/guybrush/Project/github/hack/dynamic_link/sum-d 
+Starting program: /home/guybrush/Project/github/hack/binhacks/dynamic_link/sum-d
 
 
 => add 함수가 호출되는 첫번째, 두번째 지점에 break 후 실행
@@ -437,8 +483,7 @@ Breakpoint 1, 0x08048603 in main ()
    (참고 : sum-d의 .plt section의 시작주소는 0x08048480)
 
 
-
-(gdb) disassemble 
+(gdb) disassemble
 Dump of assembler code for function add@plt:
 => 0x08048490 <+0>:	jmp    DWORD PTR ds:0x804a00c
    0x08048496 <+6>:	push   0x0
@@ -473,11 +518,10 @@ End of assembler dump.
 => 0x8048490 <add@plt>:	jmp    DWORD PTR ds:0x804a00c
    0x8048496 <add@plt+6>:	push   0x0
    0x804849b <add@plt+11>:	jmp    0x8048480
-(gdb) 
+(gdb)
 
 
 => 최초, .plt section의 add 함수 주소의 코드를 확인해보면? 위와 같이 add@plt에서 disassemble로 확인한 코드와 동일하다.
-
 
 
 (gdb) x/20i 0x08048480
@@ -500,6 +544,8 @@ End of assembler dump.
    0x80484d0 <sub@plt>:	jmp    DWORD PTR ds:0x804a01c
    0x80484d6 <sub@plt+6>:	push   0x20
    0x80484db <sub@plt+11>:	jmp    0x8048480
+   0x80484e0:	jmp    DWORD PTR ds:0x8049ffc
+(gdb)
 ...
 
 
@@ -534,7 +580,7 @@ End of assembler dump.
       sum-d에서 사용하는 모든 외부 참조 함수들의 코드를 실행해주는 instruction set이 저장되어 있다.
 
 
-(gdb) disassemble 
+(gdb) disassemble
 Dump of assembler code for function add@plt:
 => 0x08048490 <+0>:	jmp    DWORD PTR ds:0x804a00c
    0x08048496 <+6>:	push   0x0
@@ -547,7 +593,7 @@ End of assembler dump.
 (gdb) si			<= 0x0804849b instruction 수행
 
 0x08048480 in ?? ()		<= 
-(gdb) 
+(gdb)
 
 
 => .plt section의 add 관련 코드 분석을 해보았으니, 순차적으로 instruction을 수행해보자.
@@ -575,7 +621,7 @@ End of assembler dump.
    0x80484d6 <sub@plt+6>:	push   0x20
    0x80484db <sub@plt+11>:	jmp    0x8048480
    0x80484e0:	jmp    DWORD PTR ds:0x8049ffc
-(gdb) 
+(gdb)
 
 
 
@@ -596,18 +642,19 @@ End of assembler dump.
    0x804a01c:	(bad)  
 (gdb) si
 0x08048486 in ?? ()
-(gdb) disassemble 
+(gdb) disassemble
 No function contains program counter for selected frame.
 (gdb) si
 0xf7feefe0 in ?? () from /lib/ld-linux.so.2
-(gdb) disassemble 
+(gdb) disassemble
 No function contains program counter for selected frame.
 (gdb) b add
 Breakpoint 3 at 0xf7fb6503
 (gdb) c
 Continuing.
 
-Breakpoint 3, 0xf7fb6503 in add () from /home/guybrush/Project/github/hack/dynamic_link/libcalc.so
+Breakpoint 3, 0xf7fb6503 in add ()
+   from /home/guybrush/Project/github/hack/binhacks/dynamic_link/libcalc.so
 (gdb) disassemble add
 Dump of assembler code for function add:
    0xf7fb6500 <+0>:	push   ebp
@@ -620,12 +667,16 @@ Dump of assembler code for function add:
    0xf7fb6515 <+21>:	pop    ebp
    0xf7fb6516 <+22>:	ret    
 End of assembler dump.
+(gdb)
 
 
 (gdb) finish
-Run till exit from #0  0xf7fb6503 in add () from /home/guybrush/Project/github/hack/dynamic_link/libcalc.so
+Run till exit from #0  0xf7fb6503 in add ()
+   from /home/guybrush/Project/github/hack/binhacks/dynamic_link/libcalc.so
 0x08048608 in main ()
-(gdb) disassemble 
+(gdb)
+
+(gdb) disassemble
 Dump of assembler code for function main:
    0x080485eb <+0>:	lea    ecx,[esp+0x4]
    0x080485ef <+4>:	and    esp,0xfffffff0
@@ -674,7 +725,7 @@ Continuing.
 
 
 Breakpoint 2, 0x08048616 in main ()
-(gdb) disassemble 
+(gdb) disassemble
 Dump of assembler code for function main:
    0x080485eb <+0>:	lea    ecx,[esp+0x4]
    0x080485ef <+4>:	and    esp,0xfffffff0
@@ -721,7 +772,7 @@ End of assembler dump.
 
 
 0x08048490 in add@plt ()
-(gdb) disassemble 
+(gdb) disassemble
 Dump of assembler code for function add@plt:
 => 0x08048490 <+0>:	jmp    DWORD PTR ds:0x804a00c
    0x08048496 <+6>:	push   0x0
@@ -741,7 +792,9 @@ End of assembler dump.
   [25] .data             PROGBITS        0804a020 001020 000008 00  WA  0   0  4
 
 
-0804a000-0804b000 rw-p 00001000 103:07 6558395                           /home/guybrush/Project/github/hack/dynamic_link/sum-d
+
+0804a000-0804b000 rw-p 00001000 103:07 6558389                           /home/guybrush/Project/github/hack/binhacks/dynamic_link/sum-d
+
 
 => 또한, lazy binding 으로 인해 runtime에 외부 참조 함수의 주소가 update 되어야 하므로, .got.plt segment는 writable 영역임을 알 수 있다.
 
@@ -769,7 +822,7 @@ End of assembler dump.
 
   [12] .plt              PROGBITS        08048480 000480 000060 04  AX  0   0 16
 
-08048000-08049000 r-xp 00000000 103:07 6558395                           /home/guybrush/Project/github/hack/dynamic_link/sum-d
+08048000-08049000 r-xp 00000000 103:07 6558389                           /home/guybrush/Project/github/hack/binhacks/dynamic_link/sum-d
 
 
 
@@ -778,8 +831,7 @@ End of assembler dump.
 
   [24] .got.plt          PROGBITS        0804a000 001000 000020 04  WA  0   0  4
 
-0804a000-0804b000 rw-p 00001000 103:07 6558395                           /home/guybrush/Project/github/hack/dynamic_link/sum-d
-
+0804a000-0804b000 rw-p 00001000 103:07 6558389                           /home/guybrush/Project/github/hack/binhacks/dynamic_link/sum-d
 
 
 ex)
@@ -802,8 +854,8 @@ End of assembler dump.
 
 
 (gdb) si
-0xf7fb6500 in add () from /home/guybrush/Project/github/hack/dynamic_link/libcalc.so
-(gdb) disassemble 
+0xf7fb6500 in add () from /home/guybrush/Project/github/hack/binhacks/dynamic_link/libcalc.so
+(gdb) disassemble
 Dump of assembler code for function add:
 => 0xf7fb6500 <+0>:	push   ebp
    0xf7fb6501 <+1>:	mov    ebp,esp
@@ -815,7 +867,7 @@ Dump of assembler code for function add:
    0xf7fb6515 <+21>:	pop    ebp
    0xf7fb6516 <+22>:	ret    
 End of assembler dump.
-(gdb) 
+(gdb)
 
 
 
