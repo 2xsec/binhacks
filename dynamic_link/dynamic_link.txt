@@ -1,0 +1,886 @@
+
+
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ sudo sysctl kernel.randomize_va_space
+kernel.randomize_va_space = 0
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ gcc -c main.c -m32
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ gcc -c add.c -m32 -fPIC
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ gcc -c sub.c -m32 -fPIC
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ gcc -o libcalc.so add.o sub.o -shared -m32
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ gcc -o sum-d main.o -L. -lcalc -m32
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ ll sum-d
+-rwxrwxr-x 1 guybrush guybrush 7456 10월  7 18:39 sum-d*
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ file sum-d
+sum-d: ELF 32-bit LSB executable, Intel 80386, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux.so.2, for GNU/Linux 2.6.32, BuildID[sha1]=09d99f7912f5d00861e1730be49f2538831dc0c8, not stripped
+
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ ./sum-d 
+./sum-d: error while loading shared libraries: libcalc.so: cannot open shared object file: No such file or directory
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
+
+
+
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ cd /etc/ld.so.conf.d/
+guybrush@nt900x5t:/etc/ld.so.conf.d$ sudo gedit libcalc.conf 
+
+=> /home/guybrush/Project/github/hack/dynamic_link
+
+
+
+
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ sudo ldconfig -v
+/sbin/ldconfig.real: Path `/lib/x86_64-linux-gnu' given more than once
+/sbin/ldconfig.real: Path `/usr/lib/x86_64-linux-gnu' given more than once
+/usr/lib/x86_64-linux-gnu/libfakeroot:
+	libfakeroot-0.so -> libfakeroot-tcp.so
+/home/guybrush/Project/github/hack/dynamic_link:
+	libcalc.so -> libcalc.so
+/usr/local/lib:
+	liblxc.so.1 -> liblxc.so.1.4.0
+/home/guybrush/Project/github/hack/binhacks/process_memory_space:
+	libfunc.so -> libfunc.so
+/lib/x86_64-linux-gnu:
+	libsepol.so.1 -> libsepol.so.1
+
+............
+
+
+
+guybrush@nt900x5t:/etc/ld.so.conf.d$ cd -
+/home/guybrush/Project/github/hack/dynamic_link
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ ./sum-d 
+sum = 3
+
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ 
+
+
+
+
+
+
+
+
+
+1. libcalc.so 파일 구조 확인
+
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ readelf -h libcalc.so
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              DYN (Shared object file)
+  Machine:                           Intel 80386
+  Version:                           0x1
+  Entry point address:               0x3d0
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          5864 (bytes into file)
+  Flags:                             0x0
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         7
+  Size of section headers:           40 (bytes)
+  Number of section headers:         27
+  Section header string table index: 24
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
+
+=> libcalc.so의 ELF header에서 Type을 확인해보면, DYN 즉, shared object file임을 알 수 있다.
+
+2. sum-d 파일 구조 확인
+
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ readelf -S sum-d
+There are 31 section headers, starting at offset 0x1848:
+
+Section Headers:
+  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+  [ 0]                   NULL            00000000 000000 000000 00      0   0  0
+  [ 1] .interp           PROGBITS        08048154 000154 000013 00   A  0   0  1
+  [ 2] .note.ABI-tag     NOTE            08048168 000168 000020 00   A  0   0  4
+  [ 3] .note.gnu.build-i NOTE            08048188 000188 000024 00   A  0   0  4
+  [ 4] .gnu.hash         GNU_HASH        080481ac 0001ac 000040 04   A  5   0  4
+  [ 5] .dynsym           DYNSYM          080481ec 0001ec 000110 10   A  6   1  4
+  [ 6] .dynstr           STRTAB          080482fc 0002fc 0000d9 00   A  0   0  1
+  [ 7] .gnu.version      VERSYM          080483d6 0003d6 000022 02   A  5   0  2
+  [ 8] .gnu.version_r    VERNEED         080483f8 0003f8 000020 00   A  6   1  4
+  [ 9] .rel.dyn          REL             08048418 000418 000010 08   A  5   0  4
+  [10] .rel.plt          REL             08048428 000428 000028 08  AI  5  24  4
+  [11] .init             PROGBITS        08048450 000450 000023 00  AX  0   0  4
+  [12] .plt              PROGBITS        08048480 000480 000060 04  AX  0   0 16
+  [13] .plt.got          PROGBITS        080484e0 0004e0 000008 00  AX  0   0  8
+  [14] .text             PROGBITS        080484f0 0004f0 0001d2 00  AX  0   0 16
+  [15] .fini             PROGBITS        080486c4 0006c4 000014 00  AX  0   0  4
+  [16] .rodata           PROGBITS        080486d8 0006d8 000012 00   A  0   0  4
+  [17] .eh_frame_hdr     PROGBITS        080486ec 0006ec 00002c 00   A  0   0  4
+  [18] .eh_frame         PROGBITS        08048718 000718 0000cc 00   A  0   0  4
+  [19] .init_array       INIT_ARRAY      08049f00 000f00 000004 00  WA  0   0  4
+  [20] .fini_array       FINI_ARRAY      08049f04 000f04 000004 00  WA  0   0  4
+  [21] .jcr              PROGBITS        08049f08 000f08 000004 00  WA  0   0  4
+  [22] .dynamic          DYNAMIC         08049f0c 000f0c 0000f0 08  WA  6   0  4
+  [23] .got              PROGBITS        08049ffc 000ffc 000004 04  WA  0   0  4
+  [24] .got.plt          PROGBITS        0804a000 001000 000020 04  WA  0   0  4
+  [25] .data             PROGBITS        0804a020 001020 000008 00  WA  0   0  4
+  [26] .bss              NOBITS          0804a028 001028 000008 00  WA  0   0  4
+  [27] .comment          PROGBITS        00000000 001028 000035 01  MS  0   0  1
+  [28] .shstrtab         STRTAB          00000000 00173d 00010a 00      0   0  1
+  [29] .symtab           SYMTAB          00000000 001060 000490 10     30  47  4
+  [30] .strtab           STRTAB          00000000 0014f0 00024d 00      0   0  1
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings)
+  I (info), L (link order), G (group), T (TLS), E (exclude), x (unknown)
+  O (extra OS processing required) o (OS specific), p (processor specific)
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
+
+
+1) .interp section
+   - dynamic linker(ld.so)의 full path 이름을 저장
+2) .dynsym section
+   - dynamic library(.so)에 있는 외부 참조 동적 심볼 테이블
+3) .dynstr section
+   - .dynsym section의 symbol string table
+4) .dynamic section
+   - ld.so에서 사용할 동적 링킹 정보
+
+
+5) sum-d binary의 .interp section 확인
+
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ readelf -p .interp sum-d
+
+String dump of section '.interp':
+  [     0]  /lib/ld-linux.so.2
+
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
+
+=> .interp section의 내용을 string으로 확인해보면(-p 옵션) "/lib/ld-linux.so.2"라는 string이 입력되어 있음을 알 수 있고,
+
+   해당 string의 길이는 18임을 확인할 수 있다.
+
+
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ readelf -l sum-d
+
+Elf file type is EXEC (Executable file)
+Entry point 0x80484f0
+There are 9 program headers, starting at offset 52
+
+Program Headers:
+  Type           Offset   VirtAddr   PhysAddr   FileSiz MemSiz  Flg Align
+  PHDR           0x000034 0x08048034 0x08048034 0x00120 0x00120 R E 0x4
+  INTERP         0x000154 0x08048154 0x08048154 0x00013 0x00013 R   0x1
+      [Requesting program interpreter: /lib/ld-linux.so.2]
+  LOAD           0x000000 0x08048000 0x08048000 0x007e4 0x007e4 R E 0x1000
+  LOAD           0x000f00 0x08049f00 0x08049f00 0x00128 0x00130 RW  0x1000
+  DYNAMIC        0x000f0c 0x08049f0c 0x08049f0c 0x000f0 0x000f0 RW  0x4
+  NOTE           0x000168 0x08048168 0x08048168 0x00044 0x00044 R   0x4
+  GNU_EH_FRAME   0x0006ec 0x080486ec 0x080486ec 0x0002c 0x0002c R   0x4
+  GNU_STACK      0x000000 0x00000000 0x00000000 0x00000 0x00000 RW  0x10
+  GNU_RELRO      0x000f00 0x08049f00 0x08049f00 0x00100 0x00100 R   0x1
+
+ Section to Segment mapping:
+  Segment Sections...
+   00     
+   01     .interp 
+   02     .interp .note.ABI-tag .note.gnu.build-id .gnu.hash .dynsym .dynstr .gnu.version .gnu.version_r .rel.dyn .rel.plt .init .plt .plt.got .text .fini .rodata .eh_frame_hdr .eh_frame 
+   03     .init_array .fini_array .jcr .dynamic .got .got.plt .data .bss 
+   04     .dynamic 
+   05     .note.ABI-tag .note.gnu.build-id 
+   06     .eh_frame_hdr 
+   07     
+   08     .init_array .fini_array .jcr .dynamic .got 
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
+
+=> Program Header의 INTERP section 정보를 확인해보면, size가 0x13(=19)으로 위의 .interp section의 string에서 확인한 것처럼 "/lib/ld-linux.so.2" string 길이 18에 null을 포함한 총 길이 19가 설정되었음을
+   알 수 있다.
+
+
+6) sum-d binary의 dynamic section 확인(-d)
+
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ readelf -d sum-d 
+
+Dynamic section at offset 0xf0c contains 25 entries:
+  Tag        Type                         Name/Value
+ 0x00000001 (NEEDED)                     Shared library: [libcalc.so]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so.6]
+ 0x0000000c (INIT)                       0x8048450
+ 0x0000000d (FINI)                       0x80486c4
+ 0x00000019 (INIT_ARRAY)                 0x8049f00
+ 0x0000001b (INIT_ARRAYSZ)               4 (bytes)
+ 0x0000001a (FINI_ARRAY)                 0x8049f04
+ 0x0000001c (FINI_ARRAYSZ)               4 (bytes)
+ 0x6ffffef5 (GNU_HASH)                   0x80481ac
+ 0x00000005 (STRTAB)                     0x80482fc
+ 0x00000006 (SYMTAB)                     0x80481ec
+ 0x0000000a (STRSZ)                      217 (bytes)
+ 0x0000000b (SYMENT)                     16 (bytes)
+ 0x00000015 (DEBUG)                      0x0
+ 0x00000003 (PLTGOT)                     0x804a000
+ 0x00000002 (PLTRELSZ)                   40 (bytes)
+ 0x00000014 (PLTREL)                     REL
+ 0x00000017 (JMPREL)                     0x8048428
+ 0x00000011 (REL)                        0x8048418
+ 0x00000012 (RELSZ)                      16 (bytes)
+ 0x00000013 (RELENT)                     8 (bytes)
+ 0x6ffffffe (VERNEED)                    0x80483f8
+ 0x6fffffff (VERNEEDNUM)                 1
+ 0x6ffffff0 (VERSYM)                     0x80483d6
+ 0x00000000 (NULL)                       0x0
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
+
+=> runtime에 libcalc.so, libc.so.6 2개의 library를 dynamic loading 하기 위해, 
+ 0x00000001 (NEEDED)                     Shared library: [libcalc.so]
+ 0x00000001 (NEEDED)                     Shared library: [libc.so.6]
+
+
+
+
+
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ ./sum-d
+sum = 3
+
+
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ ps -a
+  PID TTY          TIME CMD
+11285 pts/1    00:00:00 sum-d
+11304 pts/2    00:00:00 ps
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ cat /proc/11285/maps 
+08048000-08049000 r-xp 00000000 103:07 6558395                           /home/guybrush/Project/github/hack/dynamic_link/sum-d
+08049000-0804a000 r--p 00000000 103:07 6558395                           /home/guybrush/Project/github/hack/dynamic_link/sum-d
+0804a000-0804b000 rw-p 00001000 103:07 6558395                           /home/guybrush/Project/github/hack/dynamic_link/sum-d
+0804b000-0806c000 rw-p 00000000 00:00 0                                  [heap]
+
+
+=> 실행 binary(sum-d)의 process map 영역 + heap 영역
+
+
+f7e01000-f7e02000 rw-p 00000000 00:00 0		<= for page alignment ???. size is 0x1000
+
+
+f7e02000-f7faf000 r-xp 00000000 103:07 3538950                           /lib32/libc-2.23.so
+f7faf000-f7fb0000 ---p 001ad000 103:07 3538950                           /lib32/libc-2.23.so
+f7fb0000-f7fb2000 r--p 001ad000 103:07 3538950                           /lib32/libc-2.23.so
+f7fb2000-f7fb3000 rw-p 001af000 103:07 3538950                           /lib32/libc-2.23.so
+
+
+=> shared library(libc.so)의 process map 영역
+
+
+f7fb3000-f7fb6000 rw-p 00000000 00:00 0		<= for page alignment ???. size is 0x3000
+
+
+f7fb6000-f7fb7000 r-xp 00000000 103:07 6558392                           /home/guybrush/Project/github/hack/dynamic_link/libcalc.so
+f7fb7000-f7fb8000 r--p 00000000 103:07 6558392                           /home/guybrush/Project/github/hack/dynamic_link/libcalc.so
+f7fb8000-f7fb9000 rw-p 00001000 103:07 6558392                           /home/guybrush/Project/github/hack/dynamic_link/libcalc.so
+
+
+=> shared library(libcalc.so)의 process map 영역
+
+
+f7fd4000-f7fd5000 rw-p 00000000 00:00 0		<= for page alignment ???. size is 0x1000
+
+
+f7fd5000-f7fd8000 r--p 00000000 00:00 0                                  [vvar]
+f7fd8000-f7fda000 r-xp 00000000 00:00 0                                  [vdso]
+f7fda000-f7ffc000 r-xp 00000000 103:07 3538948                           /lib32/ld-2.23.so
+f7ffc000-f7ffd000 r--p 00022000 103:07 3538948                           /lib32/ld-2.23.so
+f7ffd000-f7ffe000 rw-p 00023000 103:07 3538948                           /lib32/ld-2.23.so
+
+
+=> Dynamic Linker(ld.so)의 process map 영역
+
+
+fffdd000-ffffe000 rw-p 00000000 00:00 0                                  [stack]
+
+
+=> stack 영역
+
+
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$
+
+
+
+
+** Dynamic LInking - PLT & GOT
+
+1. PLT(Procedure Linkage Table) - .plt section
+   1) 참조할 외부 함수들의 이름정보를 가지고 있음
+   2) 다른 외부 라이브러리에 위치한 함수를 호출할 경우 PLT를 사용
+      * Window PE file의 경우 INT(Import Name Table) 사용
+
+
+2. GOT(Global Offset Table) - .got.plt section
+   1) PLT에 있는 함수들의 실제 주소를 가지고 있음
+   2) PLT가 어떤 외부 함수를 호출할 때 이 GOT를 참조해서 해당 주소로 Jump
+      * Window PE file의 경우 IAT(Import Address Table) 사용
+
+=> 참고로, .got section은 재배치할 전역변수들의 주소들로 loading time에 결정됨
+   즉, 외부 참조 함수의 실제 주소와는 관련이 없음
+
+
+** Dynamic Linking - Lazy Binding
+   => Lazy Binding은 Linux ELF binary에서만 사용되는 개념
+
+   1) program 실행 이후에 초기 GOT segment는 dynamic
+
+
+
+
+
+
+
+
+
+
+
+
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ gdb -q libcalc.so
+Reading symbols from libcalc.so...(no debugging symbols found)...done.
+(gdb) disassemble add
+Dump of assembler code for function add:
+   0x00000500 <+0>:	push   ebp
+   0x00000501 <+1>:	mov    ebp,esp
+   0x00000503 <+3>:	call   0x517 <__x86.get_pc_thunk.ax>
+   0x00000508 <+8>:	add    eax,0x1af8
+   0x0000050d <+13>:	mov    edx,DWORD PTR [ebp+0x8]
+   0x00000510 <+16>:	mov    eax,DWORD PTR [ebp+0xc]
+   0x00000513 <+19>:	add    eax,edx
+   0x00000515 <+21>:	pop    ebp
+   0x00000516 <+22>:	ret    
+End of assembler dump.
+(gdb) disassemble sub
+Dump of assembler code for function sub:
+   0x0000051b <+0>:	push   ebp
+   0x0000051c <+1>:	mov    ebp,esp
+   0x0000051e <+3>:	call   0x517 <__x86.get_pc_thunk.ax>
+   0x00000523 <+8>:	add    eax,0x1add
+   0x00000528 <+13>:	mov    eax,DWORD PTR [ebp+0x8]
+   0x0000052b <+16>:	sub    eax,DWORD PTR [ebp+0xc]
+   0x0000052e <+19>:	pop    ebp
+   0x0000052f <+20>:	ret    
+End of assembler dump.
+(gdb) 
+
+
+
+
+
+
+sum-d에서 처음 호출되는 add 함수와 두번째 호출되는 add 함수의 동작을 분석해보자.
+
+
+
+
+
+
+1. add 함수의 첫번째 호출 동작 분석
+
+
+guybrush@nt900x5t:~/Project/github/hack/dynamic_link$ gdb -q sum-d
+Reading symbols from sum-d...(no debugging symbols found)...done.
+(gdb) disassemble 
+No frame selected.
+(gdb) disassemble main 
+Dump of assembler code for function main:
+   0x080485eb <+0>:	lea    ecx,[esp+0x4]
+   0x080485ef <+4>:	and    esp,0xfffffff0
+   0x080485f2 <+7>:	push   DWORD PTR [ecx-0x4]
+   0x080485f5 <+10>:	push   ebp
+   0x080485f6 <+11>:	mov    ebp,esp
+   0x080485f8 <+13>:	push   ecx
+   0x080485f9 <+14>:	sub    esp,0x14
+   0x080485fc <+17>:	sub    esp,0x8
+   0x080485ff <+20>:	push   0x2
+   0x08048601 <+22>:	push   0x1
+   0x08048603 <+24>:	call   0x8048490 <add@plt>
+   0x08048608 <+29>:	add    esp,0x10
+   0x0804860b <+32>:	mov    DWORD PTR [ebp-0xc],eax
+   0x0804860e <+35>:	sub    esp,0x8
+   0x08048611 <+38>:	push   0x1
+   0x08048613 <+40>:	push   DWORD PTR [ebp-0xc]
+   0x08048616 <+43>:	call   0x8048490 <add@plt>
+   0x0804861b <+48>:	add    esp,0x10
+   0x0804861e <+51>:	mov    ds:0x804a028,eax
+   0x08048623 <+56>:	mov    eax,ds:0x804a028
+   0x08048628 <+61>:	sub    esp,0x8
+   0x0804862b <+64>:	push   0x1
+   0x0804862d <+66>:	push   eax
+   0x0804862e <+67>:	call   0x80484d0 <sub@plt>
+   0x08048633 <+72>:	add    esp,0x10
+   0x08048636 <+75>:	mov    ds:0x804a028,eax
+   0x0804863b <+80>:	mov    eax,ds:0x804a028
+   0x08048640 <+85>:	sub    esp,0x8
+   0x08048643 <+88>:	push   eax
+   0x08048644 <+89>:	push   0x80486e0
+   0x08048649 <+94>:	call   0x80484a0 <printf@plt>
+   0x0804864e <+99>:	add    esp,0x10
+   0x08048651 <+102>:	call   0x80484b0 <getchar@plt>
+   0x08048656 <+107>:	nop
+   0x08048657 <+108>:	mov    ecx,DWORD PTR [ebp-0x4]
+   0x0804865a <+111>:	leave  
+   0x0804865b <+112>:	lea    esp,[ecx-0x4]
+   0x0804865e <+115>:	ret    
+End of assembler dump.
+(gdb) b *main+24
+Breakpoint 1 at 0x8048603
+(gdb) b *main+43
+Breakpoint 2 at 0x8048616
+(gdb) r
+Starting program: /home/guybrush/Project/github/hack/dynamic_link/sum-d 
+
+
+=> add 함수가 호출되는 첫번째, 두번째 지점에 break 후 실행
+
+
+Breakpoint 1, 0x08048603 in main ()
+(gdb) si
+0x08048490 in add@plt ()
+
+=> add 함수 코드 실행
+   add는 외부 참조함수이므로 .plt section에 있는 add symbol의 코드가 실행된다.
+   (참고 : sum-d의 .plt section의 시작주소는 0x08048480)
+
+
+
+(gdb) disassemble 
+Dump of assembler code for function add@plt:
+=> 0x08048490 <+0>:	jmp    DWORD PTR ds:0x804a00c
+   0x08048496 <+6>:	push   0x0
+   0x0804849b <+11>:	jmp    0x8048480
+End of assembler dump.
+
+
+=> .plt section의 add symbol 코드
+   이 시점에는 함수가 처음으로 call 되는 시점이므로 libcalc.so에 있는 실제 add() 함수의 코드 위치를 알 수 없다.
+
+
+(gdb) x/x 0x804a00c
+0x804a00c:	0x08048496
+
+
+=> .plt section의 add symbol의 첫번째 instruction으로, 외부 참조 함수인 add의 실제 코드 주소로 jump 한다.
+   우선, ds:0x804a00c 주소에 있는 값(주소)으로 jump를 시도하는데, ds:0x804a00c 주소에 있는 값은 0x08048496으로써, libcalc.so에 있는 add 함수의 code 영역이 아닌,
+   현재 실행중인 명령어의 바로 다음 명령어인 push 0x0의 주소임을 알 수 있다.
+=> 즉, add 함수가 한번도 실행된적이 없기 때문에 현재 add 함수의 실제 코드 주소를 모르는 상태이므로 dynamic loader에 add 함수의 코드 주소를 요청하여 got table에 update 해주는 작업이 최초 1회 필요함을 알 수 있다.
+
+
+(gdb) x/2i 0x08048496
+   0x8048496 <add@plt+6>:	push   0x0
+   0x804849b <add@plt+11>:	jmp    0x8048480
+
+=> 0x08048496은 sum-d program의 add@plt 코드의 "jmp    DWORD PTR ds:0x804a00c" 다음 명령인 "push 0x0" 명령의 주소임을 알 수 있다.
+   즉, add가 외부 참조 함수이므로 최초 call 시점에 그 주소를 알수 없으므로, 해당 코드의 주소를 알아오는 작업이 필요함을 알 수 있고,
+   이 작업을 수행하는 명령어가 0x08048496, 0x0804849b 주소에 있는 2개 명령어인 push 0x0, jmp 0x8048480임을 알 수 있다.
+
+
+(gdb) x/3i 0x08048490
+=> 0x8048490 <add@plt>:	jmp    DWORD PTR ds:0x804a00c
+   0x8048496 <add@plt+6>:	push   0x0
+   0x804849b <add@plt+11>:	jmp    0x8048480
+(gdb) 
+
+
+=> 최초, .plt section의 add 함수 주소의 코드를 확인해보면? 위와 같이 add@plt에서 disassemble로 확인한 코드와 동일하다.
+
+
+
+(gdb) x/20i 0x08048480
+   0x8048480:	push   DWORD PTR ds:0x804a004
+   0x8048486:	jmp    DWORD PTR ds:0x804a008
+   0x804848c:	add    BYTE PTR [eax],al
+   0x804848e:	add    BYTE PTR [eax],al
+=> 0x8048490 <add@plt>:	jmp    DWORD PTR ds:0x804a00c
+   0x8048496 <add@plt+6>:	push   0x0
+   0x804849b <add@plt+11>:	jmp    0x8048480
+   0x80484a0 <printf@plt>:	jmp    DWORD PTR ds:0x804a010
+   0x80484a6 <printf@plt+6>:	push   0x8
+   0x80484ab <printf@plt+11>:	jmp    0x8048480
+   0x80484b0 <getchar@plt>:	jmp    DWORD PTR ds:0x804a014
+   0x80484b6 <getchar@plt+6>:	push   0x10
+   0x80484bb <getchar@plt+11>:	jmp    0x8048480
+   0x80484c0 <__libc_start_main@plt>:	jmp    DWORD PTR ds:0x804a018
+   0x80484c6 <__libc_start_main@plt+6>:	push   0x18
+   0x80484cb <__libc_start_main@plt+11>:	jmp    0x8048480
+   0x80484d0 <sub@plt>:	jmp    DWORD PTR ds:0x804a01c
+   0x80484d6 <sub@plt+6>:	push   0x20
+   0x80484db <sub@plt+11>:	jmp    0x8048480
+...
+
+
+=> 그럼, 실제 add 함수의 코드 주소를 update 해줄것으로 예상되는 instruction의 주소인 0x08048480의 instruction들을 확인해보면 위와 같다.
+=> 0x08048480 영역은 위에서 확인한바와 같이 sum-d의 .plt section의 시작주소임을 알 수 있다.
+   (참고 : sum-d의 .plt section의 시작주소는 0x08048480)
+=> 즉, 위의 10개 instruction 확인결과, 0x08048480 부터 외부 참조 함수의 코드 주소를 찾아 update 해주는 코드와 외부 참조 함수 실행 코드들이 순차적으로
+   나열되어 있는 것을 확인할 수 있다.
+
+   0x8048480:	push   DWORD PTR ds:0x804a004	<= 6 bytes instruction
+   0x8048486:	jmp    DWORD PTR ds:0x804a008	<= 6 bytes instruction
+   0x804848c:	add    BYTE PTR [eax],al	<= 2 bytes instruction
+   0x804848e:	add    BYTE PTR [eax],al	<= 2 bytes instruction
+   => 0x08048480 ~ 0x0804848f 총 16 bytes 길이의 4개 instruction
+   => 외부 참조 함수가 처음 실행된 경우, ld.so의 _dl_runtime_resolve()를 호출하여 실제 함수의 코드 주소를 got table ??에 update 해준다.
+
+   0x8048490 <add@plt>:	jmp    DWORD PTR ds:0x804a00c	<= 6 bytes instruction
+   0x8048496 <add@plt+6>:	push   0x0		<= 5 bytes instruction
+   0x804849b <add@plt+11>:	jmp    0x8048480	<= 5 bytes instruction
+   => 0x08048490 ~ 0x0804849f 총 16 bytes 길이의 3개 instruction
+   => add 함수 최초 실행 시 add 함수의 실제 코드 영역 주소를 update 해주고, 두번째 실행부터는 update 된 코드 영역의 코드를 실행하도록 jump 해주는 코드
+
+   0x80484a0 <printf@plt>:	jmp    DWORD PTR ds:0x804a010	<= 6 bytes instruction
+   0x80484a6 <printf@plt+6>:	push   0x8			<= 5 bytes instruction
+   0x80484ab <printf@plt+11>:	jmp    0x8048480		<= 5 bytes instruction
+   => 0x80484a0 ~ 0x80484af 총 16 bytes 길이의 3개 instruction
+   => printf 함수 최초 실행 시 printf 함수의 실제 코드 영역 주소를 update 해주고, 두번째 실행부터는 update 된 코드 영역의 코드를 실행하도록 jump 해주는 코드
+...
+
+   => 결론적으로,
+      sum-d의 .plt section에는 ld.so의 _dl_runtime_resolve()를 호출해 외부 참조 함수들이 코드 주소를 update 해주는 instruction set과
+      sum-d에서 사용하는 모든 외부 참조 함수들의 코드를 실행해주는 instruction set이 저장되어 있다.
+
+
+(gdb) disassemble 
+Dump of assembler code for function add@plt:
+=> 0x08048490 <+0>:	jmp    DWORD PTR ds:0x804a00c
+   0x08048496 <+6>:	push   0x0
+   0x0804849b <+11>:	jmp    0x8048480
+End of assembler dump.
+(gdb) si			<= 0x08048490 instruction 수행
+0x08048496 in add@plt ()
+(gdb) si			<= 0x08048496 instruction 수행
+0x0804849b in add@plt ()
+(gdb) si			<= 0x0804849b instruction 수행
+
+0x08048480 in ?? ()		<= 
+(gdb) 
+
+
+=> .plt section의 add 관련 코드 분석을 해보았으니, 순차적으로 instruction을 수행해보자.
+   add 함수가 처음 호출되었으므로, 0x0804849b 주소의 jmp 0x08048480 instruction을 수행하게 된다.
+
+
+(gdb) x/20i 0x08048480
+=> 0x8048480:	push   DWORD PTR ds:0x804a004
+   0x8048486:	jmp    DWORD PTR ds:0x804a008
+   0x804848c:	add    BYTE PTR [eax],al
+   0x804848e:	add    BYTE PTR [eax],al
+   0x8048490 <add@plt>:	jmp    DWORD PTR ds:0x804a00c
+   0x8048496 <add@plt+6>:	push   0x0
+   0x804849b <add@plt+11>:	jmp    0x8048480
+   0x80484a0 <printf@plt>:	jmp    DWORD PTR ds:0x804a010
+   0x80484a6 <printf@plt+6>:	push   0x8
+   0x80484ab <printf@plt+11>:	jmp    0x8048480
+   0x80484b0 <getchar@plt>:	jmp    DWORD PTR ds:0x804a014
+   0x80484b6 <getchar@plt+6>:	push   0x10
+   0x80484bb <getchar@plt+11>:	jmp    0x8048480
+   0x80484c0 <__libc_start_main@plt>:	jmp    DWORD PTR ds:0x804a018
+   0x80484c6 <__libc_start_main@plt+6>:	push   0x18
+   0x80484cb <__libc_start_main@plt+11>:	jmp    0x8048480
+   0x80484d0 <sub@plt>:	jmp    DWORD PTR ds:0x804a01c
+   0x80484d6 <sub@plt+6>:	push   0x20
+   0x80484db <sub@plt+11>:	jmp    0x8048480
+   0x80484e0:	jmp    DWORD PTR ds:0x8049ffc
+(gdb) 
+
+
+
+(gdb) x/x 0x0804a004
+0x804a004:	0xf7ffd918
+(gdb) x/x *0x0804a004
+0xf7ffd918:	0x00000000
+(gdb) x/10i 0x0804a008
+   0x804a008:	loopne 0x8049ff9
+   0x804a00a:	(bad)  
+   0x804a00b:	not    DWORD PTR [esi-0x59f7fb7c]
+   0x804a011:	test   BYTE PTR [eax+ecx*1],al
+   0x804a014:	mov    dh,0x84
+   0x804a016:	add    al,0x8
+   0x804a018:	inc    eax
+   0x804a019:	movs   DWORD PTR es:[edi],DWORD PTR ds:[esi]
+   0x804a01a:	loope  0x804a013
+   0x804a01c:	(bad)  
+(gdb) si
+0x08048486 in ?? ()
+(gdb) disassemble 
+No function contains program counter for selected frame.
+(gdb) si
+0xf7feefe0 in ?? () from /lib/ld-linux.so.2
+(gdb) disassemble 
+No function contains program counter for selected frame.
+(gdb) b add
+Breakpoint 3 at 0xf7fb6503
+(gdb) c
+Continuing.
+
+Breakpoint 3, 0xf7fb6503 in add () from /home/guybrush/Project/github/hack/dynamic_link/libcalc.so
+(gdb) disassemble add
+Dump of assembler code for function add:
+   0xf7fb6500 <+0>:	push   ebp
+   0xf7fb6501 <+1>:	mov    ebp,esp
+=> 0xf7fb6503 <+3>:	call   0xf7fb6517 <__x86.get_pc_thunk.ax>
+   0xf7fb6508 <+8>:	add    eax,0x1af8
+   0xf7fb650d <+13>:	mov    edx,DWORD PTR [ebp+0x8]
+   0xf7fb6510 <+16>:	mov    eax,DWORD PTR [ebp+0xc]
+   0xf7fb6513 <+19>:	add    eax,edx
+   0xf7fb6515 <+21>:	pop    ebp
+   0xf7fb6516 <+22>:	ret    
+End of assembler dump.
+
+
+(gdb) finish
+Run till exit from #0  0xf7fb6503 in add () from /home/guybrush/Project/github/hack/dynamic_link/libcalc.so
+0x08048608 in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x080485eb <+0>:	lea    ecx,[esp+0x4]
+   0x080485ef <+4>:	and    esp,0xfffffff0
+   0x080485f2 <+7>:	push   DWORD PTR [ecx-0x4]
+   0x080485f5 <+10>:	push   ebp
+   0x080485f6 <+11>:	mov    ebp,esp
+   0x080485f8 <+13>:	push   ecx
+   0x080485f9 <+14>:	sub    esp,0x14
+   0x080485fc <+17>:	sub    esp,0x8
+   0x080485ff <+20>:	push   0x2
+   0x08048601 <+22>:	push   0x1
+   0x08048603 <+24>:	call   0x8048490 <add@plt>
+=> 0x08048608 <+29>:	add    esp,0x10
+   0x0804860b <+32>:	mov    DWORD PTR [ebp-0xc],eax
+   0x0804860e <+35>:	sub    esp,0x8
+   0x08048611 <+38>:	push   0x1
+   0x08048613 <+40>:	push   DWORD PTR [ebp-0xc]
+   0x08048616 <+43>:	call   0x8048490 <add@plt>
+   0x0804861b <+48>:	add    esp,0x10
+   0x0804861e <+51>:	mov    ds:0x804a028,eax
+   0x08048623 <+56>:	mov    eax,ds:0x804a028
+   0x08048628 <+61>:	sub    esp,0x8
+   0x0804862b <+64>:	push   0x1
+   0x0804862d <+66>:	push   eax
+   0x0804862e <+67>:	call   0x80484d0 <sub@plt>
+   0x08048633 <+72>:	add    esp,0x10
+   0x08048636 <+75>:	mov    ds:0x804a028,eax
+   0x0804863b <+80>:	mov    eax,ds:0x804a028
+   0x08048640 <+85>:	sub    esp,0x8
+   0x08048643 <+88>:	push   eax
+   0x08048644 <+89>:	push   0x80486e0
+   0x08048649 <+94>:	call   0x80484a0 <printf@plt>
+   0x0804864e <+99>:	add    esp,0x10
+   0x08048651 <+102>:	call   0x80484b0 <getchar@plt>
+   0x08048656 <+107>:	nop
+   0x08048657 <+108>:	mov    ecx,DWORD PTR [ebp-0x4]
+   0x0804865a <+111>:	leave  
+   0x0804865b <+112>:	lea    esp,[ecx-0x4]
+   0x0804865e <+115>:	ret    
+End of assembler dump.
+(gdb) c
+Continuing.
+
+
+=> 첫번째 add 함수 호출을 종료하고 다시 main의 코드 확인
+
+
+Breakpoint 2, 0x08048616 in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x080485eb <+0>:	lea    ecx,[esp+0x4]
+   0x080485ef <+4>:	and    esp,0xfffffff0
+   0x080485f2 <+7>:	push   DWORD PTR [ecx-0x4]
+   0x080485f5 <+10>:	push   ebp
+   0x080485f6 <+11>:	mov    ebp,esp
+   0x080485f8 <+13>:	push   ecx
+   0x080485f9 <+14>:	sub    esp,0x14
+   0x080485fc <+17>:	sub    esp,0x8
+   0x080485ff <+20>:	push   0x2
+   0x08048601 <+22>:	push   0x1
+   0x08048603 <+24>:	call   0x8048490 <add@plt>
+   0x08048608 <+29>:	add    esp,0x10
+   0x0804860b <+32>:	mov    DWORD PTR [ebp-0xc],eax
+   0x0804860e <+35>:	sub    esp,0x8
+   0x08048611 <+38>:	push   0x1
+   0x08048613 <+40>:	push   DWORD PTR [ebp-0xc]
+=> 0x08048616 <+43>:	call   0x8048490 <add@plt>
+   0x0804861b <+48>:	add    esp,0x10
+   0x0804861e <+51>:	mov    ds:0x804a028,eax
+   0x08048623 <+56>:	mov    eax,ds:0x804a028
+   0x08048628 <+61>:	sub    esp,0x8
+   0x0804862b <+64>:	push   0x1
+   0x0804862d <+66>:	push   eax
+   0x0804862e <+67>:	call   0x80484d0 <sub@plt>
+   0x08048633 <+72>:	add    esp,0x10
+   0x08048636 <+75>:	mov    ds:0x804a028,eax
+   0x0804863b <+80>:	mov    eax,ds:0x804a028
+   0x08048640 <+85>:	sub    esp,0x8
+   0x08048643 <+88>:	push   eax
+   0x08048644 <+89>:	push   0x80486e0
+   0x08048649 <+94>:	call   0x80484a0 <printf@plt>
+   0x0804864e <+99>:	add    esp,0x10
+   0x08048651 <+102>:	call   0x80484b0 <getchar@plt>
+   0x08048656 <+107>:	nop
+   0x08048657 <+108>:	mov    ecx,DWORD PTR [ebp-0x4]
+   0x0804865a <+111>:	leave  
+   0x0804865b <+112>:	lea    esp,[ecx-0x4]
+   0x0804865e <+115>:	ret    
+End of assembler dump.
+(gdb) si
+
+=> 두번째 add 함수 코드 실행 시점
+
+
+0x08048490 in add@plt ()
+(gdb) disassemble 
+Dump of assembler code for function add@plt:
+=> 0x08048490 <+0>:	jmp    DWORD PTR ds:0x804a00c
+   0x08048496 <+6>:	push   0x0
+   0x0804849b <+11>:	jmp    0x8048480
+End of assembler dump.
+(gdb) x/x 0x0804a00c
+0x804a00c:	0xf7fb6500
+
+
+=> 이번에는 0x08048490 명령에서 jump하는 0x0804a00c 주소에 저장된 위치(주소)가 다음 명령어 0x08048496 주소의 명령어가 아닌 실제 libcalc.so에 있는 실제 add 함수의 코드 주소가 update 되어 있음을 알 수 있다.
+
+=> 0x0804a00c는 sum-d의 .got.plt section 영역으로, .got.plt section이 실제 got table 역할을 수행한다.
+   즉, .got.plt section에 외부 참조 함수의 주소를 저장한다.
+
+
+  [24] .got.plt          PROGBITS        0804a000 001000 000020 04  WA  0   0  4
+  [25] .data             PROGBITS        0804a020 001020 000008 00  WA  0   0  4
+
+
+0804a000-0804b000 rw-p 00001000 103:07 6558395                           /home/guybrush/Project/github/hack/dynamic_link/sum-d
+
+=> 또한, lazy binding 으로 인해 runtime에 외부 참조 함수의 주소가 update 되어야 하므로, .got.plt segment는 writable 영역임을 알 수 있다.
+
+=> sum-d의 .got.plt section의 시작주소부터(0x0804a000) size인 0x20(=32)까지 32bytes dump를 떠보면, 8개의 주소가 저장되어 있음을 알 수 있으므로,
+   sum-d의 경우는 8개의 외부 참조 함수가 사용되고 있음을 알 수 있다.
+ 
+(gdb) x/20x 0x0804a000
+=> .got.plt segment(32 bytes) 시작
+0x804a000:	0x08049f0c	0xf7ffd918	0xf7feefe0	0x08048496
+0x804a010:	0x080484a6	0x080484b6	0xf7e1a540	0x080484d6
+
+=> .data segment 시작
+0x804a020:	0x00000000	0x00000000	0x00000000	0x00000000
+
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+*** 즉, .plt section은 외부 참조 함수 실행을 위한 코드가 저장되어 있는 영역으로 text segment에 위치한다.(read & execute만 가능한 영역)
+    1. 외부 참조 함수 실행코드는 각 함수마다 따로 존재한다.(jump하는 주소가 다르므로)
+    2. 외부 참조 함수 실행코드는 크게 아래와 같이 2가지로 이루어지며,
+       1) 외부 참조 함수의 실제 코드 주소가 update 되지 않은 경우 linker(ld.so)에 주소를 찾아 got table에 update 를 요청하는 코드(lazy binding)
+          => 외부 참조 함수가 처음 실행되는 경우
+       2) got table에 외부 참조 함수의 실제 코드 주소가 update되어 있는 경우 .got.plt segment를 참고하여 해당 주소로 jump하는 코드
+
+    => 즉, .plt section은 sum-d에서 실행되는 모든 외부 참조 함수들을 실행시켜주기 위한 코드가 저장되어 있다.
+
+  [12] .plt              PROGBITS        08048480 000480 000060 04  AX  0   0 16
+
+08048000-08049000 r-xp 00000000 103:07 6558395                           /home/guybrush/Project/github/hack/dynamic_link/sum-d
+
+
+
+***, .got.plt section은 .plt section의 코드에서 외부 참조 함수들의 실제 코드 주소를 update하여 저장하는 GOT table 영역이며, 
+     runtime에 주소가 update 되어야 하므로, sum-d의 writable segment 영역에 위치한다.
+
+  [24] .got.plt          PROGBITS        0804a000 001000 000020 04  WA  0   0  4
+
+0804a000-0804b000 rw-p 00001000 103:07 6558395                           /home/guybrush/Project/github/hack/dynamic_link/sum-d
+
+
+
+ex)
+
+Dump of assembler code for function add@plt:
+=> 0x08048490 <+0>:	jmp    DWORD PTR ds:0x804a00c
+   0x08048496 <+6>:	push   0x0
+   0x0804849b <+11>:	jmp    0x8048480
+End of assembler dump.
+
+1. 0x08048490 ~ 0x0804849f : sum-d에서 참조하는 외부 참조 함수인 add를 실행하기 위한 코드가 위치하는 .plt segment
+2. 0x0804a00c : GOT Table에(.got.plt segment) add 함수의 주소가 저장되는 offset 위치
+   1) add 함수 처음 호출 시 add에 대응하는 GOT Table의 위치에는 바로 다음 명령어인 0x08048496 위치로 다시 이동하고, 0x08048480에 위치한 linker의 dl resolve를 호출하여,
+      실제 add 함수의 코드 주소를 update 하도록 한다.
+   2) add 함수 두번째 호출하게 되면, 0x08048496 위치로 이동하지 않고, add의 GOT table 위치인 0x0804a00c에 저장된 add의 실제 코드 주소로 바로 jump 한다.
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+(gdb) si
+0xf7fb6500 in add () from /home/guybrush/Project/github/hack/dynamic_link/libcalc.so
+(gdb) disassemble 
+Dump of assembler code for function add:
+=> 0xf7fb6500 <+0>:	push   ebp
+   0xf7fb6501 <+1>:	mov    ebp,esp
+   0xf7fb6503 <+3>:	call   0xf7fb6517 <__x86.get_pc_thunk.ax>
+   0xf7fb6508 <+8>:	add    eax,0x1af8
+   0xf7fb650d <+13>:	mov    edx,DWORD PTR [ebp+0x8]
+   0xf7fb6510 <+16>:	mov    eax,DWORD PTR [ebp+0xc]
+   0xf7fb6513 <+19>:	add    eax,edx
+   0xf7fb6515 <+21>:	pop    ebp
+   0xf7fb6516 <+22>:	ret    
+End of assembler dump.
+(gdb) 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+(gdb) si
+0x08048496 in add@plt ()
+(gdb) si
+0x0804849b in add@plt ()
+(gdb) x/2i 0x08048480
+   0x8048480:	push   DWORD PTR ds:0x804a004
+   0x8048486:	jmp    DWORD PTR ds:0x804a008
+(gdb) x/x 0x0804a004
+0x804a004:	0xf7ffd918
+(gdb) x/x *0x0804a004
+0xf7ffd918:	0x00000000
+
+=> 0x08048480은 program의 plt segment 영역으로, got table에 외부 참조 함수의 실제 주소를 update 하기 위해 dl에 이를 요청하는 코드를 가지고 있다.
+   ds:0x804a004 주소에는 값 0이 들어가 있음 => 이는 offset이 0임을 의미
+
+(gdb) x/x *0x0804a008
+0xf7feefe0:	0x8b525150
+(gdb) x/x 0x8b525150
+0x8b525150:	Cannot access memory at address 0x8b525150
+(gdb) x/s 0x8b525150
+0x8b525150:	<error: Cannot access memory at address 0x8b525150>
+
+
+
+(gdb) x/x 0x0804a008
+0x804a008:	0xe0
+(gdb) x/8x 0x0804a008
+0x804a008:	0xe0	0xef	0xfe	0xf7	0x96	0x84	0x04	0x08
+(gdb) x/wx 0x0804a008
+0x804a008:	0xf7feefe0
+(gdb) x/dwx 0x0804a008
+0x804a008:	0xf7feefe0
+(gdb) 
+
+
+
+gdb에 GOT 정보 안나오는 것은...아무래도 g 옵션으로 빌드안해서 그런듯...g 옵션 넣어서 다시 빌드해서 디버깅해보자.....
+
+
