@@ -1,0 +1,51 @@
+* x86 Assembly
+
+1. Basic Format of x86 instructions
+   => 총 3가지 유형의 instruction 존재
+
+   1) 0 operand
+      ex) ret
+          (opcode)
+   2) 1 operand
+      ex) inc        eax
+          (opcode)   (operand)
+   3) 2 operands
+      ex) mov        eax,        ebx
+          (opcode)   (operand 1) (operand 2)
+
+   => opcode는 명령어를 의미하며, operand는 해당 명령어의 대상을 의미한다.
+
+2. Opcode decides semantics
+   1) mov        eax,             ebx			; eax <= ebx
+      (opcode)   (destination)    (source)
+   2) sub        esp,             0x8			; esp <= esp - 0x8
+      (opcode)   (destination)    (source)
+   3) inc        eax			                ; eax <= eax + 1
+      (opcode)
+
+3. Operand Types
+
+
+
+4. Stack Operations
+   1) push
+      => stack pointer(esp) 주소 증가 후 해당 위치에 값을 저장
+   2) pop
+      => stack pointer(esp)의 현재 위치에 있는 값을 꺼내서 저장한 뒤, stack pointer 주소를 감소시킴
+
+   => push / pop operation 후에 stack pointer는 항상 stack 에 저장되어 있는 유효한 값만을 가리키고 있는 pointer이다.
+
+   3) leave
+      mov esp, ebp
+      pop ebp
+
+   4) call
+      ex) call foo ; call function foo
+          Nextret: ; next label after returning from foo
+      => push Nextret (the next instruction address of current function to return here again)
+         jmp foo
+
+   5) ret (return to the caller)
+      pop eip	<= 실제 이런 명령어는 없지만, ret 명령어가 동일한 의미의 명령을 수행한다.
+                   즉, 현재 stack에 저장된 값(return address 주소)를 eip 레지스터에 저장해, 이전함수에서 call 명령 수행한 뒤의
+                   다음 명령어를 수행하게 하여, 결과적으로 함수를 리턴시키게 되는 효과를 가지게 된다.
