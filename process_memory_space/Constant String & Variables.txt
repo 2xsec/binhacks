@@ -1,0 +1,733 @@
+
+* define으로 정의된 상수 스트링과 상수 배열의 차이점은?
+
+
+1. Test Source Code
+guybrush@nt900x5t:~/Project/github/hack/binhacks$ cat bof1.c 
+/*
+ * gcc -o bof1 bof1.c -m32 -fno-stack-protector -mpreferred-stack-boundary=2 -Wl,-z,execstack
+ * ./bof1 $(perl -e 'print "A"x8 . "\xbc\x8a\x04\x08"')
+ */
+
+#include <stdio.h>
+#include <string.h>
+
+#define TEST1	"asdfjkl"	/* 1. defined constant string TEST1 */
+
+void secretfunc()
+{
+	char shellcode_21[] = 
+		"\x31\xc9\xf7\xe1\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\xb0\x0b\xcd\x80";
+
+	void (*func)() = (void(*)())shellcode_21;
+	func();
+}
+
+int main(int argc, char* argv[]) {
+	int i = 0;
+	char buf[8] = {0,};
+	const char buf1[100] = "zxcvzxv";	/* 2. defined constant array buf1 */
+
+	strcpy(buf, argv[1]);
+
+	if (i == 0x08048abc)
+		secretfunc();
+	else
+		printf("Try Again\n");
+	printf("CONSTANT 0x%p / 0x%p - %s\n", TEST1, &TEST1, TEST1);
+	return 0;
+}
+
+
+
+
+2. Constant String 주소 값 및 위치하는 segment 확인
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks$ gcc -o bof1 bof1.c -m32 -fno-stack-protector -mpreferred-stack-boundary=2 -Wl,-z,execstack -g
+guybrush@nt900x5t:~/Project/github/hack/binhacks$ gdb ./bof1
+GNU gdb (Ubuntu 7.11.1-0ubuntu1~16.5) 7.11.1
+Copyright (C) 2016 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
+and "show warranty" for details.
+This GDB was configured as "x86_64-linux-gnu".
+Type "show configuration" for configuration details.
+For bug reporting instructions, please see:
+<http://www.gnu.org/software/gdb/bugs/>.
+Find the GDB manual and other documentation resources online at:
+<http://www.gnu.org/software/gdb/documentation/>.
+For help, type "help".
+Type "apropos word" to search for commands related to "word"...
+Reading symbols from ./bof1...done.
+
+
+(gdb) b main
+Breakpoint 1 at 0x80484af: file bof1.c, line 21.
+
+
+(gdb) r "adsf"
+The program being debugged has been started already.
+Start it from the beginning? (y or n) y
+Starting program: /home/guybrush/Project/github/hack/binhacks/bof1 "adsf"
+
+Breakpoint 1, main (argc=2, argv=0xffffceb4) at bof1.c:21
+21		int i = 0;
+(gdb) n
+22		char buf[8] = {0,};
+(gdb) 
+23		const char buf1[100] = "zxcvzxv";
+(gdb) 
+25		strcpy(buf, argv[1]);
+(gdb) 
+27		if (i == 0x08048abc)
+(gdb) 
+30			printf("Try Again\n");
+(gdb) 
+Try Again
+31		printf("CONSTANT 0x%p / 0x%p - %s\n", TEST1, &TEST1, TEST1);
+(gdb) 
+CONSTANT 0x0x80485ca / 0x0x80485ca - asdfjkl
+32		return 0;
+
+
+(gdb) shell ps -a
+  PID TTY          TIME CMD
+13800 pts/2    00:00:00 gdb
+13814 pts/2    00:00:00 bof1
+13822 pts/2    00:00:00 ps
+
+(gdb) shell cat /proc/13814/maps
+08048000-08049000 r-xp 00000000 103:07 6817765                           /home/guybrush/Project/github/hack/binhacks/bof1	<= Constant String 의 위치는(0x0x80485ca) code segment로써, 수정이 불가능한 영역
+08049000-0804a000 r-xp 00000000 103:07 6817765                           /home/guybrush/Project/github/hack/binhacks/bof1
+0804a000-0804b000 rwxp 00001000 103:07 6817765                           /home/guybrush/Project/github/hack/binhacks/bof1
+0804b000-0806c000 rwxp 00000000 00:00 0                                  [heap]
+f7e04000-f7e05000 rwxp 00000000 00:00 0 
+f7e05000-f7fb2000 r-xp 00000000 103:07 3538950                           /lib32/libc-2.23.so
+f7fb2000-f7fb3000 ---p 001ad000 103:07 3538950                           /lib32/libc-2.23.so
+f7fb3000-f7fb5000 r-xp 001ad000 103:07 3538950                           /lib32/libc-2.23.so
+f7fb5000-f7fb6000 rwxp 001af000 103:07 3538950                           /lib32/libc-2.23.so
+f7fb6000-f7fb9000 rwxp 00000000 00:00 0 
+f7fd4000-f7fd5000 rwxp 00000000 00:00 0 
+f7fd5000-f7fd8000 r--p 00000000 00:00 0                                  [vvar]
+f7fd8000-f7fda000 r-xp 00000000 00:00 0                                  [vdso]
+f7fda000-f7ffc000 r-xp 00000000 103:07 3538948                           /lib32/ld-2.23.so
+f7ffc000-f7ffd000 r-xp 00022000 103:07 3538948                           /lib32/ld-2.23.so
+f7ffd000-f7ffe000 rwxp 00023000 103:07 3538948                           /lib32/ld-2.23.so
+fffdd000-ffffe000 rwxp 00000000 00:00 0                                  [stack]
+
+(gdb) shell readelf -S bof1
+There are 36 section headers, starting at offset 0x1c78:
+
+Section Headers:
+  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+  [ 0]                   NULL            00000000 000000 000000 00      0   0  0
+  [ 1] .interp           PROGBITS        08048154 000154 000013 00   A  0   0  1
+  [ 2] .note.ABI-tag     NOTE            08048168 000168 000020 00   A  0   0  4
+  [ 3] .note.gnu.build-i NOTE            08048188 000188 000024 00   A  0   0  4
+  [ 4] .gnu.hash         GNU_HASH        080481ac 0001ac 000020 04   A  5   0  4
+  [ 5] .dynsym           DYNSYM          080481cc 0001cc 000070 10   A  6   1  4
+  [ 6] .dynstr           STRTAB          0804823c 00023c 000058 00   A  0   0  1
+  [ 7] .gnu.version      VERSYM          08048294 000294 00000e 02   A  5   0  2
+  [ 8] .gnu.version_r    VERNEED         080482a4 0002a4 000020 00   A  6   1  4
+  [ 9] .rel.dyn          REL             080482c4 0002c4 000008 08   A  5   0  4
+  [10] .rel.plt          REL             080482cc 0002cc 000020 08  AI  5  24  4
+  [11] .init             PROGBITS        080482ec 0002ec 000023 00  AX  0   0  4
+  [12] .plt              PROGBITS        08048310 000310 000050 04  AX  0   0 16
+  [13] .plt.got          PROGBITS        08048360 000360 000008 00  AX  0   0  8
+  [14] .text             PROGBITS        08048370 000370 000232 00  AX  0   0 16
+  [15] .fini             PROGBITS        080485a4 0005a4 000014 00  AX  0   0  4
+
+  [16] .rodata           PROGBITS        080485b8 0005b8 000035 00   A  0   0  4	<= Constant String이 위치하는 영역인(0x0x80485ca) .rodata section(0x080485b8 ~ 0x080485ed = 0x35(53 bytes) size)
+
+  [17] .eh_frame_hdr     PROGBITS        080485f0 0005f0 000034 00   A  0   0  4
+  [18] .eh_frame         PROGBITS        08048624 000624 0000e4 00   A  0   0  4
+  [19] .init_array       INIT_ARRAY      08049f08 000f08 000004 00  WA  0   0  4
+  [20] .fini_array       FINI_ARRAY      08049f0c 000f0c 000004 00  WA  0   0  4
+  [21] .jcr              PROGBITS        08049f10 000f10 000004 00  WA  0   0  4
+  [22] .dynamic          DYNAMIC         08049f14 000f14 0000e8 08  WA  6   0  4
+  [23] .got              PROGBITS        08049ffc 000ffc 000004 04  WA  0   0  4
+  [24] .got.plt          PROGBITS        0804a000 001000 00001c 04  WA  0   0  4
+  [25] .data             PROGBITS        0804a01c 00101c 000008 00  WA  0   0  4
+  [26] .bss              NOBITS          0804a024 001024 000004 00  WA  0   0  1
+  [27] .comment          PROGBITS        00000000 001024 000035 01  MS  0   0  1
+  [28] .debug_aranges    PROGBITS        00000000 001059 000020 00      0   0  1
+  [29] .debug_info       PROGBITS        00000000 001079 00015e 00      0   0  1
+  [30] .debug_abbrev     PROGBITS        00000000 0011d7 0000b9 00      0   0  1
+  [31] .debug_line       PROGBITS        00000000 001290 00004a 00      0   0  1
+  [32] .debug_str        PROGBITS        00000000 0012da 000124 01  MS  0   0  1
+  [33] .shstrtab         STRTAB          00000000 001b2b 00014a 00      0   0  1
+  [34] .symtab           SYMTAB          00000000 001400 0004d0 10     35  52  4
+  [35] .strtab           STRTAB          00000000 0018d0 00025b 00      0   0  1
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings)
+  I (info), L (link order), G (group), T (TLS), E (exclude), x (unknown)
+  O (extra OS processing required) o (OS specific), p (processor specific)
+(gdb) p 0x35
+$1 = 53
+(gdb) p 0x080485b8 + 0x35
+$2 = 134514157
+(gdb) p/x 0x080485b8 + 0x35
+$3 = 0x80485ed
+
+
+
+
+3. Array의 주소 값 및 위치하는 segment 확인
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks$ gcc -o bof1 bof1.c -m32 -fno-stack-protector -mpreferred-stack-boundary=2 -Wl,-z,execstack -g
+guybrush@nt900x5t:~/Project/github/hack/binhacks$ gdb -q ./bof1
+Reading symbols from ./bof1...done.
+(gdb) b main
+Breakpoint 1 at 0x80484af: file bof1.c, line 21.
+(gdb) r "afds"
+Starting program: /home/guybrush/Project/github/hack/binhacks/bof1 "afds"
+
+Breakpoint 1, main (argc=2, argv=0xffffceb4) at bof1.c:21
+21		int i = 0;
+
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x080484a8 <+0>:	push   ebp
+   0x080484a9 <+1>:	mov    ebp,esp
+   0x080484ab <+3>:	push   edi
+   0x080484ac <+4>:	sub    esp,0x74
+   0x080484af <+7>:	mov    DWORD PTR [ebp-0x8],0x0
+   0x080484b6 <+14>:	mov    DWORD PTR [ebp-0x14],0x0
+   0x080484bd <+21>:	mov    DWORD PTR [ebp-0x10],0x0
+   0x080484c4 <+28>:	mov    DWORD PTR [ebp-0x78],0x62797567		<= const array buf1에 저장되는 string "guybrush"
+   0x080484cb <+35>:	mov    DWORD PTR [ebp-0x74],0x68737572		<= const array buf1에 저장되는 string "guybrush"
+   0x080484d2 <+42>:	mov    DWORD PTR [ebp-0x70],0x0
+   0x080484d9 <+49>:	lea    edx,[ebp-0x6c]
+   0x080484dc <+52>:	mov    eax,0x0
+   0x080484e1 <+57>:	mov    ecx,0x16
+   0x080484e6 <+62>:	mov    edi,edx
+   0x080484e8 <+64>:	rep stos DWORD PTR es:[edi],eax
+=> 0x080484ea <+66>:	mov    eax,DWORD PTR [ebp+0xc]
+   0x080484ed <+69>:	add    eax,0x4
+   0x080484f0 <+72>:	mov    eax,DWORD PTR [eax]
+   0x080484f2 <+74>:	push   eax
+   0x080484f3 <+75>:	lea    eax,[ebp-0x14]
+   0x080484f6 <+78>:	push   eax
+   0x080484f7 <+79>:	call   0x8048330 <strcpy@plt>
+   0x080484fc <+84>:	add    esp,0x8
+   0x080484ff <+87>:	cmp    DWORD PTR [ebp-0x8],0x8048abc
+   0x08048506 <+94>:	jne    0x804850f <main+103>
+   0x08048508 <+96>:	call   0x804846b <secretfunc>
+   0x0804850d <+101>:	jmp    0x804851c <main+116>
+   0x0804850f <+103>:	push   0x8048600
+   0x08048514 <+108>:	call   0x8048340 <puts@plt>
+   0x08048519 <+113>:	add    esp,0x4
+   0x0804851c <+116>:	push   0x804860a
+   0x08048521 <+121>:	push   0x804860a
+   0x08048526 <+126>:	push   0x804860a
+   0x0804852b <+131>:	push   0x8048612
+   0x08048530 <+136>:	call   0x8048320 <printf@plt>
+   0x08048535 <+141>:	add    esp,0x10
+   0x08048538 <+144>:	lea    eax,[ebp-0x78]
+   0x0804853b <+147>:	mov    DWORD PTR [ebp-0xc],eax
+   0x0804853e <+150>:	mov    eax,DWORD PTR [ebp-0xc]
+   0x08048541 <+153>:	mov    BYTE PTR [eax],0x61
+   0x08048544 <+156>:	push   DWORD PTR [ebp-0xc]
+   0x08048547 <+159>:	push   0x804862d
+   0x0804854c <+164>:	call   0x8048320 <printf@plt>
+   0x08048551 <+169>:	add    esp,0x8
+   0x08048554 <+172>:	mov    DWORD PTR [ebp-0xc],0x804860a
+   0x0804855b <+179>:	mov    eax,DWORD PTR [ebp-0xc]
+   0x0804855e <+182>:	mov    BYTE PTR [eax],0x62
+   0x08048561 <+185>:	push   DWORD PTR [ebp-0xc]
+   0x08048564 <+188>:	push   0x8048638
+   0x08048569 <+193>:	call   0x8048320 <printf@plt>
+   0x0804856e <+198>:	add    esp,0x8
+   0x08048571 <+201>:	mov    eax,0x0
+   0x08048576 <+206>:	mov    edi,DWORD PTR [ebp-0x4]
+   0x08048579 <+209>:	leave  
+   0x0804857a <+210>:	ret    
+End of assembler dump.
+(gdb) p/c 0x62
+$7 = 98 'b'
+(gdb) p/c 0x79
+$8 = 121 'y'
+(gdb) p/c 0x75
+$9 = 117 'u'
+(gdb) p/c 0x67
+$10 = 103 'g'
+
+(gdb) shell ps -a
+  PID TTY          TIME CMD
+15796 pts/2    00:00:00 gdb
+15798 pts/2    00:00:00 bof1
+15887 pts/2    00:00:00 ps
+
+(gdb) shell cat /proc/15798/maps
+08048000-08049000 r-xp 00000000 103:07 6817765                           /home/guybrush/Project/github/hack/binhacks/bof1
+08049000-0804a000 r-xp 00000000 103:07 6817765                           /home/guybrush/Project/github/hack/binhacks/bof1
+0804a000-0804b000 rwxp 00001000 103:07 6817765                           /home/guybrush/Project/github/hack/binhacks/bof1
+f7e04000-f7e05000 rwxp 00000000 00:00 0 
+f7e05000-f7fb2000 r-xp 00000000 103:07 3538950                           /lib32/libc-2.23.so
+f7fb2000-f7fb3000 ---p 001ad000 103:07 3538950                           /lib32/libc-2.23.so
+f7fb3000-f7fb5000 r-xp 001ad000 103:07 3538950                           /lib32/libc-2.23.so
+f7fb5000-f7fb6000 rwxp 001af000 103:07 3538950                           /lib32/libc-2.23.so
+f7fb6000-f7fb9000 rwxp 00000000 00:00 0 
+f7fd4000-f7fd5000 rwxp 00000000 00:00 0 
+f7fd5000-f7fd8000 r--p 00000000 00:00 0                                  [vvar]
+f7fd8000-f7fda000 r-xp 00000000 00:00 0                                  [vdso]
+f7fda000-f7ffc000 r-xp 00000000 103:07 3538948                           /lib32/ld-2.23.so
+f7ffc000-f7ffd000 r-xp 00022000 103:07 3538948                           /lib32/ld-2.23.so
+f7ffd000-f7ffe000 rwxp 00023000 103:07 3538948                           /lib32/ld-2.23.so
+fffdd000-ffffe000 rwxp 00000000 00:00 0                                  [stack]		<= Constant Array의 위치는(0xffffcda0) stack segment로써, 기본적으로 수정이 가능한 영역
+
+(gdb) shell readelf -S bof1
+There are 36 section headers, starting at offset 0x1c8c:
+
+Section Headers:
+  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+  [ 0]                   NULL            00000000 000000 000000 00      0   0  0
+  [ 1] .interp           PROGBITS        08048154 000154 000013 00   A  0   0  1
+  [ 2] .note.ABI-tag     NOTE            08048168 000168 000020 00   A  0   0  4
+  [ 3] .note.gnu.build-i NOTE            08048188 000188 000024 00   A  0   0  4
+  [ 4] .gnu.hash         GNU_HASH        080481ac 0001ac 000020 04   A  5   0  4
+  [ 5] .dynsym           DYNSYM          080481cc 0001cc 000070 10   A  6   1  4
+  [ 6] .dynstr           STRTAB          0804823c 00023c 000058 00   A  0   0  1
+  [ 7] .gnu.version      VERSYM          08048294 000294 00000e 02   A  5   0  2
+  [ 8] .gnu.version_r    VERNEED         080482a4 0002a4 000020 00   A  6   1  4
+  [ 9] .rel.dyn          REL             080482c4 0002c4 000008 08   A  5   0  4
+  [10] .rel.plt          REL             080482cc 0002cc 000020 08  AI  5  24  4
+  [11] .init             PROGBITS        080482ec 0002ec 000023 00  AX  0   0  4
+  [12] .plt              PROGBITS        08048310 000310 000050 04  AX  0   0 16
+  [13] .plt.got          PROGBITS        08048360 000360 000008 00  AX  0   0  8
+  [14] .text             PROGBITS        08048370 000370 000272 00  AX  0   0 16
+  [15] .fini             PROGBITS        080485e4 0005e4 000014 00  AX  0   0  4
+  [16] .rodata           PROGBITS        080485f8 0005f8 00004b 00   A  0   0  4
+  [17] .eh_frame_hdr     PROGBITS        08048644 000644 000034 00   A  0   0  4
+  [18] .eh_frame         PROGBITS        08048678 000678 0000e4 00   A  0   0  4
+  [19] .init_array       INIT_ARRAY      08049f08 000f08 000004 00  WA  0   0  4
+  [20] .fini_array       FINI_ARRAY      08049f0c 000f0c 000004 00  WA  0   0  4
+  [21] .jcr              PROGBITS        08049f10 000f10 000004 00  WA  0   0  4
+  [22] .dynamic          DYNAMIC         08049f14 000f14 0000e8 08  WA  6   0  4
+  [23] .got              PROGBITS        08049ffc 000ffc 000004 04  WA  0   0  4
+  [24] .got.plt          PROGBITS        0804a000 001000 00001c 04  WA  0   0  4
+  [25] .data             PROGBITS        0804a01c 00101c 000008 00  WA  0   0  4
+  [26] .bss              NOBITS          0804a024 001024 000004 00  WA  0   0  1
+  [27] .comment          PROGBITS        00000000 001024 000035 01  MS  0   0  1
+  [28] .debug_aranges    PROGBITS        00000000 001059 000020 00      0   0  1
+  [29] .debug_info       PROGBITS        00000000 001079 00016c 00      0   0  1
+  [30] .debug_abbrev     PROGBITS        00000000 0011e5 0000b9 00      0   0  1
+  [31] .debug_line       PROGBITS        00000000 00129e 000051 00      0   0  1
+  [32] .debug_str        PROGBITS        00000000 0012ef 000124 01  MS  0   0  1
+  [33] .shstrtab         STRTAB          00000000 001b3f 00014a 00      0   0  1
+  [34] .symtab           SYMTAB          00000000 001414 0004d0 10     35  52  4
+  [35] .strtab           STRTAB          00000000 0018e4 00025b 00      0   0  1
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings)
+  I (info), L (link order), G (group), T (TLS), E (exclude), x (unknown)
+  O (extra OS processing required) o (OS specific), p (processor specific)
+
+
+(gdb) disassemble 
+Dump of assembler code for function main:
+   0x080484a8 <+0>:	push   ebp
+   0x080484a9 <+1>:	mov    ebp,esp
+   0x080484ab <+3>:	push   edi
+   0x080484ac <+4>:	sub    esp,0x74
+   0x080484af <+7>:	mov    DWORD PTR [ebp-0x8],0x0
+   0x080484b6 <+14>:	mov    DWORD PTR [ebp-0x14],0x0
+   0x080484bd <+21>:	mov    DWORD PTR [ebp-0x10],0x0
+   0x080484c4 <+28>:	mov    DWORD PTR [ebp-0x78],0x62797567
+   0x080484cb <+35>:	mov    DWORD PTR [ebp-0x74],0x68737572
+   0x080484d2 <+42>:	mov    DWORD PTR [ebp-0x70],0x0
+   0x080484d9 <+49>:	lea    edx,[ebp-0x6c]
+   0x080484dc <+52>:	mov    eax,0x0
+   0x080484e1 <+57>:	mov    ecx,0x16
+   0x080484e6 <+62>:	mov    edi,edx
+   0x080484e8 <+64>:	rep stos DWORD PTR es:[edi],eax
+=> 0x080484ea <+66>:	mov    eax,DWORD PTR [ebp+0xc]
+   0x080484ed <+69>:	add    eax,0x4
+   0x080484f0 <+72>:	mov    eax,DWORD PTR [eax]
+   0x080484f2 <+74>:	push   eax
+   0x080484f3 <+75>:	lea    eax,[ebp-0x14]
+   0x080484f6 <+78>:	push   eax
+   0x080484f7 <+79>:	call   0x8048330 <strcpy@plt>
+   0x080484fc <+84>:	add    esp,0x8
+   0x080484ff <+87>:	cmp    DWORD PTR [ebp-0x8],0x8048abc
+   0x08048506 <+94>:	jne    0x804850f <main+103>
+   0x08048508 <+96>:	call   0x804846b <secretfunc>
+   0x0804850d <+101>:	jmp    0x804851c <main+116>
+   0x0804850f <+103>:	push   0x8048600
+   0x08048514 <+108>:	call   0x8048340 <puts@plt>
+   0x08048519 <+113>:	add    esp,0x4
+   0x0804851c <+116>:	push   0x804860a
+   0x08048521 <+121>:	push   0x804860a
+   0x08048526 <+126>:	push   0x804860a
+   0x0804852b <+131>:	push   0x8048612
+   0x08048530 <+136>:	call   0x8048320 <printf@plt>
+   0x08048535 <+141>:	add    esp,0x10
+   0x08048538 <+144>:	lea    eax,[ebp-0x78]
+   0x0804853b <+147>:	mov    DWORD PTR [ebp-0xc],eax
+   0x0804853e <+150>:	mov    eax,DWORD PTR [ebp-0xc]
+   0x08048541 <+153>:	mov    BYTE PTR [eax],0x61
+   0x08048544 <+156>:	push   DWORD PTR [ebp-0xc]
+   0x08048547 <+159>:	push   0x804862d
+   0x0804854c <+164>:	call   0x8048320 <printf@plt>
+   0x08048551 <+169>:	add    esp,0x8
+   0x08048554 <+172>:	mov    DWORD PTR [ebp-0xc],0x804860a
+   0x0804855b <+179>:	mov    eax,DWORD PTR [ebp-0xc]
+   0x0804855e <+182>:	mov    BYTE PTR [eax],0x62
+   0x08048561 <+185>:	push   DWORD PTR [ebp-0xc]
+   0x08048564 <+188>:	push   0x8048638
+   0x08048569 <+193>:	call   0x8048320 <printf@plt>
+   0x0804856e <+198>:	add    esp,0x8
+   0x08048571 <+201>:	mov    eax,0x0
+   0x08048576 <+206>:	mov    edi,DWORD PTR [ebp-0x4]
+   0x08048579 <+209>:	leave  
+   0x0804857a <+210>:	ret    
+End of assembler dump.
+(gdb) 
+
+...
+
+(gdb) n
+22		char buf[8] = {0,};
+(gdb) 
+23		const char buf1[100] = "guybrush";
+(gdb) 
+26		strcpy(buf, argv[1]);
+
+...
+
+(gdb) p buf1
+$1 = "guybrush", '\000' <repeats 91 times>
+
+(gdb) p buf1[0]
+$3 = 103 'g'
+
+(gdb) p &buf1[0]
+$5 = 0xffffcda0 "guybrush"
+
+(gdb) p &buf1
+$6 = (const char (*)[100]) 0xffffcda0
+
+
+
+
+
+
+=> 정리하면,
+   Constant String으로 define 된 상수의 경우, code segment 영역에 로딩이 되므로, runtime에 수정이 불가능하다.
+   C의 강제형변환이나 C++의 const cast를 이용해 강제 casting을 하더라도, 해당 위치에 값을 변경하려고 시도하면 segmentation fault가 발생하게 된다.
+
+=> 반면, Constant Type의 array 나 변수등은 기본적으로 stack에 저장이 되므로, 기본적으로는 writable 한 영역이며, const 를 이용해 Runtime에 변경이 되지 않도록 명시할 경우 사용하게 된다.
+   하지만, 강제로 non constant type으로 casting을 하게 되면, 값 변경이 가능하게 된다.
+
+
+
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks$ strings bof1
+/lib/ld-linux.so.2
+uBVf
+libc.so.6
+_IO_stdin_used
+strcpy
+puts
+printf
+__libc_start_main
+__gmon_start__
+GLIBC_2.0
+PTRh
+Ph//
+shh/
+zxcv
+UWVS
+t$,U
+[^_]
+Try Again
+asdfjkl
+CONSTANT 0x%p / 0x%p - %s
+;*2$"
+GCC: (Ubuntu 5.4.0-6ubuntu1~16.04.10) 5.4.0 20160609
+bof1.c
+gY>uu
+long long int
+/home/guybrush/Project/github/hack/binhacks
+long long unsigned int
+unsigned char
+main
+bof1.c
+shellcode_21
+argc
+short unsigned int
+secretfunc
+short int
+buf1
+GNU C11 5.4.0 20160609 -m32 -mpreferred-stack-boundary=2 -mtune=generic -march=i686 -g -fno-stack-protector
+sizetype
+argv
+crtstuff.c
+__JCR_LIST__
+deregister_tm_clones
+__do_global_dtors_aux
+completed.7209
+__do_global_dtors_aux_fini_array_entry
+frame_dummy
+__frame_dummy_init_array_entry
+bof1.c
+__FRAME_END__
+__JCR_END__
+__init_array_end
+_DYNAMIC
+__init_array_start
+__GNU_EH_FRAME_HDR
+_GLOBAL_OFFSET_TABLE_
+__libc_csu_fini
+_ITM_deregisterTMCloneTable
+__x86.get_pc_thunk.bx
+printf@@GLIBC_2.0
+_edata
+secretfunc
+strcpy@@GLIBC_2.0
+__data_start
+puts@@GLIBC_2.0
+__gmon_start__
+__dso_handle
+_IO_stdin_used
+__libc_start_main@@GLIBC_2.0
+__libc_csu_init
+_fp_hw
+__bss_start
+main
+_Jv_RegisterClasses
+__TMC_END__
+_ITM_registerTMCloneTable
+.symtab
+.strtab
+.shstrtab
+.interp
+.note.ABI-tag
+.note.gnu.build-id
+.gnu.hash
+.dynsym
+.dynstr
+.gnu.version
+.gnu.version_r
+.rel.dyn
+.rel.plt
+.init
+.plt.got
+.text
+.fini
+.rodata
+.eh_frame_hdr
+.eh_frame
+.init_array
+.fini_array
+.jcr
+.dynamic
+.got.plt
+.data
+.bss
+.comment
+.debug_aranges
+.debug_info
+.debug_abbrev
+.debug_line
+.debug_str
+
+
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks$ strings bof1 | grep asdfjkl
+asdfjkl
+guybrush@nt900x5t:~/Project/github/hack/binhacks$ readelf -p .rodata bof1
+
+String dump of section '.rodata':
+  [     8]  Try Again
+  [    12]  asdfjkl
+  [    1a]  CONSTANT 0x%p / 0x%p - %s^J
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks$ 
+
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks$ strings bof1 | grep guybrush
+/home/guybrush/Project/github/hack/binhacks
+
+
+=> 위의 확인결과처럼, #define TEST1	"asdfjkl" 에 정의된 asdfjkl string은 strings tool을 이용해 검출되며, .rodata section에 저장되어 있음을 확인할 수 있다.
+   하지만,
+   const char buf1[100] = "guybrush"; 에 저장되는 string "guybrush"는 .rodata section에 존재하지 않음을 확인할 수 있고, 이로 인해 strings를 통해서도 검출되지 않음을 알 수 있다.
+=> 위에서 확인한것처럼,
+   string "guybrush"는 ascii 값으로 stack에 바로 로딩되는 것을 확인할 수 있다.
+
+
+
+
+
+
+4. 위 두가지 경우에 대해 강제 casting 후 값 변경을 시도하면 어떤 결과가 나오는지 확인해보자.
+
+* Test Code 확인
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks$ cat bof1.c 
+/*
+ * gcc -o bof1 bof1.c -m32 -fno-stack-protector -mpreferred-stack-boundary=2 -Wl,-z,execstack
+ * ./bof1 $(perl -e 'print "A"x8 . "\xbc\x8a\x04\x08"')
+ */
+
+#include <stdio.h>
+#include <string.h>
+
+#define TEST1	"asdfjkl"
+
+void secretfunc()
+{
+	char shellcode_21[] = 
+		"\x31\xc9\xf7\xe1\x50\x68\x2f\x2f\x73\x68\x68\x2f\x62\x69\x6e\x89\xe3\xb0\x0b\xcd\x80";
+
+	void (*func)() = (void(*)())shellcode_21;
+	func();
+}
+
+int main(int argc, char* argv[]) {
+	int i = 0;
+	char buf[8] = {0,};
+	const char buf1[100] = "guybrush";
+	char* ptr;
+
+	strcpy(buf, argv[1]);
+
+	if (i == 0x08048abc)
+		secretfunc();
+	else
+		printf("Try Again\n");
+	printf("CONSTANT 0x%p / 0x%p - %s\n", TEST1, &TEST1, TEST1);
+
+	/* const char *를 char *로 강제 형변환 후 값 변경 시도 */
+
+	/* Case 1 : const array */
+	ptr = (char *)buf1;
+	ptr[0] = 'a';
+	printf("ptr1 : %s\n", ptr);
+
+	/* Case 2 : constant strings */
+	ptr = (char *)TEST1;
+	ptr[0] = 'b';
+	printf("ptr2 : %s\n", ptr);
+
+	return 0;
+}
+guybrush@nt900x5t:~/Project/github/hack/binhacks$ gcc -o bof1 bof1.c -m32 -fno-stack-protector -mpreferred-stack-boundary=2 -Wl,-z,execstack -g
+
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks$ ./bof1 "adsfAS"
+Try Again
+CONSTANT 0x0x804860a / 0x0x804860a - asdfjkl
+ptr1 : auybrush
+Segmentation fault (core dumped)
+guybrush@nt900x5t:~/Project/github/hack/binhacks$
+
+=> 두번째 casting 후 값 변경 시도시(constant string) segmentation fault 발생
+
+
+
+guybrush@nt900x5t:~/Project/github/hack/binhacks$ gdb ./bof1 
+GNU gdb (Ubuntu 7.11.1-0ubuntu1~16.5) 7.11.1
+Copyright (C) 2016 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
+and "show warranty" for details.
+This GDB was configured as "x86_64-linux-gnu".
+Type "show configuration" for configuration details.
+For bug reporting instructions, please see:
+<http://www.gnu.org/software/gdb/bugs/>.
+Find the GDB manual and other documentation resources online at:
+<http://www.gnu.org/software/gdb/documentation/>.
+For help, type "help".
+Type "apropos word" to search for commands related to "word"...
+Reading symbols from ./bof1...done.
+
+(gdb) b main
+Breakpoint 1 at 0x80484af: file bof1.c, line 21.
+
+(gdb) r "asdf"
+Starting program: /home/guybrush/Project/github/hack/binhacks/bof1 "asdf"
+
+Breakpoint 1, main (argc=2, argv=0xffffceb4) at bof1.c:21
+21		int i = 0;
+(gdb) n
+22		char buf[8] = {0,};
+(gdb) 
+23		const char buf1[100] = "zxcvzxv";
+(gdb) 
+26		strcpy(buf, argv[1]);
+(gdb) 
+28		if (i == 0x08048abc)
+(gdb) 
+31			printf("Try Again\n");
+(gdb) 
+Try Again
+32		printf("CONSTANT 0x%p / 0x%p - %s\n", TEST1, &TEST1, TEST1);
+(gdb) 
+CONSTANT 0x0x804860a / 0x0x804860a - asdfjkl
+
+
+
+34		ptr = (char *)buf1;
+(gdb) 
+35		ptr[0] = 'a';
+(gdb) 
+36		printf("ptr1 : %s\n", ptr);
+(gdb) 
+ptr1 : axcvzxv
+
+
+=> const array의 경우 const char * => char * 변환 후 정상적으로 값이 변경됨
+   (참고로, const type의 경우 non const type으로 형변환 없이 값을 변경하면, compile error가 발생)
+
+
+38		ptr = (char *)TEST1;
+(gdb) 
+39		ptr[0] = 'b';
+(gdb) 
+
+Program received signal SIGSEGV, Segmentation fault.
+0x08048557 in main (argc=2, argv=0xffffceb4) at bof1.c:39
+39		ptr[0] = 'b';
+(gdb)
+
+
+=> constant string의 경우 const char * => char * 강제 형변환까지는 수행되지만,
+   실제 값 변경 시 segmentation fault가 발생하게 된다.
+   이유는,
+   write 권한이 없는 code segment 영역의 값 변경을 시도했기 때문이다.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
